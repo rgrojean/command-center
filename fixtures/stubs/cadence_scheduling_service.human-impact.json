@@ -1,0 +1,47 @@
+{
+  "findings": [
+    {
+      "kind": "ui",
+      "summary": "Front-desk appointment cards render PIS name as-is",
+      "evidence": {
+        "file": "src/api/routes.ts",
+        "line": 33,
+        "quote": "name: patient.name"
+      },
+      "rating": "MED"
+    },
+    {
+      "kind": "ui",
+      "summary": "SMS reminders include the PIS display name in the message body",
+      "evidence": {
+        "file": "src/reminders/worker.ts",
+        "line": 30,
+        "quote": "Riverbend Health reminder: appointment for ${patient.name} on"
+      },
+      "rating": "MED"
+    }
+  ],
+  "hypothesized_consumers": [
+    {
+      "hypothesis": "Front-desk verbal identity confirmation uses the name shown on the appointment card; a given/family reorder may confuse check-in for compound surnames.",
+      "evidence_trail": "README states dob is shown for verbal confirmation and name is rendered as-is from PIS.",
+      "confirm_by": "Ask Access & Scheduling whether check-in scripts read the card name or ask the patient to state it first.",
+      "confidence": 0.45
+    }
+  ],
+  "flags": [
+    {
+      "kind": "uat_regression",
+      "summary": "Re-read a reminder SMS for a multi-part surname after given[]/family composition.",
+      "tied_to_finding": "SMS reminders include the PIS display name in the message body"
+    },
+    {
+      "kind": "comms",
+      "summary": "Tell front desk the appointment-card name format may change with PIS v3.",
+      "tied_to_finding": "Front-desk appointment cards render PIS name as-is"
+    }
+  ],
+  "overall_rating": "MED",
+  "rating_rationale": "People see name on cards and in SMS, but Cadence never shows ssn and there is no documented script that depends on the exact 'Last, First' string.",
+  "rating_would_change_if": "A runbook quoted a required 'Last, First' format for check-in, or reminders were shown to include more of the PIS payload."
+}

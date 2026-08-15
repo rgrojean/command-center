@@ -1,0 +1,58 @@
+{
+  "repo": "cadence_scheduling_service",
+  "files_changed": [
+    {
+      "path": "src/pis-client/schema.ts",
+      "action": "modified",
+      "summary": "PatientV3: given[], family, identifier[]; ssn removed; still .strict()"
+    },
+    {
+      "path": "src/pis-client/index.ts",
+      "action": "modified",
+      "summary": "GET-by-id uses identifier.value; types match v3"
+    },
+    {
+      "path": "src/api/routes.ts",
+      "action": "modified",
+      "summary": "Compose display name from given/family for appointment cards"
+    },
+    {
+      "path": "src/reminders/worker.ts",
+      "action": "modified",
+      "summary": "SMS uses composed display name"
+    },
+    {
+      "path": "test/fixtures/pis/patient-483921.json",
+      "action": "modified",
+      "summary": "Regenerated recorded fixture to v3 shape"
+    }
+  ],
+  "test_runs": [
+    {
+      "attempt": 1,
+      "failures": [
+        "test/contract.test.ts: PatientV2.parse rejected v2 fixture fields"
+      ],
+      "resolution": "regenerated fixtures/pis/*.json to v3; re-ran"
+    },
+    {
+      "attempt": 2,
+      "failures": [],
+      "resolution": "green"
+    }
+  ],
+  "judgment_calls": [
+    {
+      "what": "Regenerated test/fixtures/pis/*.json from v2 to v3",
+      "why": "Spec required schema.parse on the v3 contract; recorded v2 fixtures cannot pass a strict v3 schema.",
+      "diff_verified": "Dropped ssn; split name into given/family; replaced patientId with identifier[{system, value}]. dob/gender/phone/email/address unchanged."
+    }
+  ],
+  "incomplete": [],
+  "human_impact_notes": [
+    {
+      "finding": "SMS reminders include the PIS display name in the message body",
+      "note": "Reminder text now composes family + given; message still contains only name + appointment time."
+    }
+  ]
+}

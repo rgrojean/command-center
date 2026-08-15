@@ -1,0 +1,15 @@
+{
+  "findings": [],
+  "hypothesized_consumers": [
+    {
+      "hypothesis": "Clinic managers reading panel/cohort CSVs might notice a one-time missing-field abort if pick() is not taught identifier.value, but they would not see ssn/name either before or after.",
+      "evidence_trail": "Collector guard exits nonzero above 0.5% missing picked fields; aggregations never see ssn/name.",
+      "confirm_by": "M4 probe: run collect:demographics against PIS v3 and compare CSV golden numbers to baseline.",
+      "confidence": 0.5
+    }
+  ],
+  "flags": [],
+  "overall_rating": "LOW",
+  "rating_rationale": "No person-facing surface in this repo shows ssn, name, or patientId. Published reports are gender/dob/zip aggregates.",
+  "rating_would_change_if": "A CSV or dashboard tile included patientId or a name, or a runbook told analysts to spot-check identity fields in snapshots."
+}

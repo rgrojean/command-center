@@ -1,0 +1,61 @@
+{
+  "repo": "patient_portal",
+  "files_changed": [
+    {
+      "path": "migrations/002_ssn_optional.sql",
+      "action": "created",
+      "summary": "ALTER portal_patients: ssn dropped; name replaced by given/family columns"
+    },
+    {
+      "path": "lib/sync.js",
+      "action": "modified",
+      "summary": "Upsert maps identifier.value, given, family; no longer reads p.ssn"
+    },
+    {
+      "path": "views/admin/patient.ejs",
+      "action": "modified",
+      "summary": "Label map: removed ssn; added given/family"
+    },
+    {
+      "path": "views/profile.ejs",
+      "action": "modified",
+      "summary": "Same label-map change as admin"
+    },
+    {
+      "path": "test/routes.test.js",
+      "action": "modified",
+      "summary": "Stopped asserting SSN on rendered admin detail"
+    }
+  ],
+  "test_runs": [
+    {
+      "attempt": 1,
+      "failures": [
+        "test/routes.test.js: expected SSN substring in admin detail HTML"
+      ],
+      "resolution": "updated assertion to given/family; confirmed SSN is absent"
+    },
+    {
+      "attempt": 2,
+      "failures": [],
+      "resolution": "green (route tests + smoke). Sync remains untested, matching repo posture."
+    }
+  ],
+  "judgment_calls": [
+    {
+      "what": "Dropped the ssn column rather than keeping a nullable unused column",
+      "why": "PIS v3 removes the field; keeping a column would invite re-display via dynamic key iteration. Spec required stopping the write and relaxing NOT NULL."
+    }
+  ],
+  "incomplete": [],
+  "human_impact_notes": [
+    {
+      "finding": "Admin patient-detail view dynamically renders SSN as a labeled row",
+      "note": "SSN row is gone from admin detail; given/family rows appear via the same iterator."
+    },
+    {
+      "finding": "Call-center phone verification uses last four of SSN from the admin screen as a tiebreaker",
+      "note": "Screen no longer offers last-four SSN; name + DOB remain. Training flag still belongs on the PR."
+    }
+  ]
+}

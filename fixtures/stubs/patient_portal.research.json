@@ -1,0 +1,143 @@
+{
+  "repo": "patient_portal",
+  "verdict": "affected",
+  "call_sites": [
+    {
+      "file": "lib/sync.js",
+      "line": 22,
+      "field": "ssn",
+      "usage": "wholesale upsert of p.ssn into portal_patients"
+    },
+    {
+      "file": "lib/sync.js",
+      "line": 22,
+      "field": "name",
+      "usage": "wholesale upsert of p.name into portal_patients"
+    },
+    {
+      "file": "lib/sync.js",
+      "line": 22,
+      "field": "patientId",
+      "usage": "wholesale upsert of p.patientId as patient_id PK"
+    },
+    {
+      "file": "lib/sync.js",
+      "line": 28,
+      "field": "patientId",
+      "usage": "GET /v2/patients/{patientId} on login refresh and nightly sync"
+    },
+    {
+      "file": "views/admin/patient.ejs",
+      "line": 18,
+      "field": "ssn",
+      "usage": "dynamic key iteration renders ssn as a labeled row on the admin detail view"
+    },
+    {
+      "file": "views/profile.ejs",
+      "line": 15,
+      "field": "ssn",
+      "usage": "same dynamic renderer on the patient profile"
+    }
+  ],
+  "persistence": [
+    {
+      "store": "postgres:portal_patients (ssn TEXT NOT NULL)",
+      "ddl_evidence": {
+        "file": "migrations/001_init.sql",
+        "line": 7,
+        "quote": "ssn TEXT NOT NULL,"
+      },
+      "write_path_evidence": {
+        "file": "lib/sync.js",
+        "line": 8,
+        "quote": "INSERT INTO portal_patients (patient_id, name, dob, gender, ssn, phone, email, addr_line1, city, state, zip)"
+      }
+    }
+  ],
+  "required_changes": [
+    {
+      "id": "portal-drop-ssn-not-null",
+      "description": "Stop writing ssn from PIS. Drop or relax ssn TEXT NOT NULL (new migration). INC-4471 comment is about sync shape, not about keeping SSN after the producer removes it.",
+      "files": ["migrations/002_ssn_optional.sql", "lib/sync.js"],
+      "evidence": {
+        "file": "migrations/001_init.sql",
+        "line": 7,
+        "quote": "ssn TEXT NOT NULL,"
+      }
+    },
+    {
+      "id": "portal-name-columns",
+      "description": "Cache given/family (or a composed display name) instead of the v2 flat name string. Keep the wholesale-upsert idiom; do not introduce a validation layer.",
+      "files": ["lib/sync.js", "migrations/002_ssn_optional.sql"],
+      "evidence": {
+        "file": "lib/sync.js",
+        "line": 1,
+        "quote": "keep cache shape = API shape, simplifies everything"
+      }
+    },
+    {
+      "id": "portal-identifier",
+      "description": "Read identifier.value for the patient_id primary key and for GET-by-id.",
+      "files": ["lib/sync.js", "app.js"],
+      "evidence": {
+        "file": "lib/sync.js",
+        "line": 28,
+        "quote": "http.get(`${process.env.PIS_URL}/v2/patients/${patientId}`)"
+      }
+    }
+  ],
+  "test_impact": {
+    "existing_tests": [
+      {
+        "name": "admin detail renders ssn from the cache row",
+        "file": "test/routes.test.js",
+        "will_break": true,
+        "why": "Asserts res.text contains cacheRow.ssn; after SSN is gone from cache the assertion is wrong even if the page is correct.",
+        "evidence": {
+          "file": "test/routes.test.js",
+          "line": 131,
+          "quote": "assert.ok(res.text.indexOf(cacheRow.ssn) !== -1);"
+        }
+      }
+    ],
+    "recommended_new_tests": [
+      {
+        "name": "sync upsert succeeds when PIS payload has no ssn",
+        "fails_first_because": "ssn TEXT NOT NULL and the column list still bind p.ssn; a v3 payload makes the INSERT fail until the migration and sync mapping change. (Sync itself is currently untested — this is a new test.)"
+      }
+    ]
+  },
+  "blockers": [],
+  "production_verification": {
+    "gaps": [
+      {
+        "deficiency": "Nightly sync tallies per-row upsert errors in a summary line nobody reads unless the total spikes; a v3-shaped payload would fail every row and page on-call, but a partial mapping bug would be silent.",
+        "evidence": {
+          "file": "README.md",
+          "line": 67,
+          "quote": "individual upsert errors are logged and skipped, tallied in a summary line nobody reads unless the total spikes"
+        },
+        "recommended_instrumentation": "Log upsert skip counts by error class (not-null / missing column / http), never by patient payload field values.",
+        "phi_safe": true
+      }
+    ]
+  },
+  "execution_grade": "judgment_heavy",
+  "grade_reasoning": "NOT NULL on a retired-but-still-written SSN column, dynamic key-iteration templates, and an untested sync job mean the write agent has to make schema-and-display calls that a mechanical patch cannot own. Human-impact is HIGH; that does not change this grade, but the gate should see both.",
+  "confidence": {
+    "score": 0.88,
+    "rationale": "DDL, sync mapping, and templates are explicit. Uncertainty is only how Digital Experience wants given/family shown on the dynamic profile rows."
+  },
+  "evidence": [
+    {
+      "file": "migrations/001_init.sql",
+      "line": 7,
+      "quote": "ssn TEXT NOT NULL,"
+    },
+    {
+      "file": "lib/sync.js",
+      "line": 6,
+      "quote": "do not remove — breaks sync, see INC-4471"
+    }
+  ]
+}

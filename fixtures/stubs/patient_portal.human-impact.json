@@ -1,0 +1,62 @@
+{
+  "findings": [
+    {
+      "kind": "ui",
+      "summary": "Admin patient-detail view dynamically renders SSN as a labeled row",
+      "evidence": {
+        "file": "views/admin/patient.ejs",
+        "line": 18,
+        "quote": "var labels = { dob: 'Date of Birth', ssn: 'SSN', addr_line1: 'Address Line 1', patient_id: 'Patient ID', updated_at: 'Updated At' };"
+      },
+      "rating": "HIGH"
+    },
+    {
+      "kind": "documented_workflow",
+      "summary": "Call-center phone verification uses last four of SSN from the admin screen as a tiebreaker",
+      "evidence": {
+        "file": "README.md",
+        "line": 67,
+        "quote": "the documented script has the agent confirm name and DOB, and staff practice in some clinics additionally uses the last four of the SSN from the same screen as a tiebreaker for common names"
+      },
+      "rating": "HIGH"
+    },
+    {
+      "kind": "ui",
+      "summary": "Patient profile iterates the cache record, so a given/family reshape will appear without a template change",
+      "evidence": {
+        "file": "views/profile.ejs",
+        "line": 15,
+        "quote": "var labels = { dob: 'Date of Birth', ssn: 'SSN', addr_line1: 'Address Line 1', patient_id: 'Patient ID', updated_at: 'Updated At' };"
+      },
+      "rating": "MED"
+    }
+  ],
+  "hypothesized_consumers": [
+    {
+      "hypothesis": "Some clinics' phone scripts still treat last-four SSN as required, not optional, despite the 2022 privacy review calling it incidental.",
+      "evidence_trail": "README: review flagged 'process reliant on incidental data display'; recommendation still in the backlog.",
+      "confirm_by": "Ask Digital Experience / call-center lead whether any clinic's current script still requires last-four SSN.",
+      "confidence": 0.6
+    }
+  ],
+  "flags": [
+    {
+      "kind": "training",
+      "summary": "Retrain clerks that last-four SSN will disappear from admin detail; name+DOB remains the documented script.",
+      "tied_to_finding": "Call-center phone verification uses last four of SSN from the admin screen as a tiebreaker"
+    },
+    {
+      "kind": "comms",
+      "summary": "Notify clinic managers before SSN rows vanish from a screen they have used since 2018.",
+      "tied_to_finding": "Admin patient-detail view dynamically renders SSN as a labeled row"
+    },
+    {
+      "kind": "uat_regression",
+      "summary": "Walk the documented phone-verification script against admin detail after SSN is gone.",
+      "tied_to_finding": "Call-center phone verification uses last four of SSN from the admin screen as a tiebreaker"
+    }
+  ],
+  "overall_rating": "HIGH",
+  "rating_rationale": "A documented human procedure (phone verification tiebreaker) and a person-facing admin surface both depend on SSN. Name reshape is visible to patients via dynamic templates.",
+  "rating_would_change_if": "Call-center lead confirms last-four SSN was retired in practice, leaving only name+DOB — rating would drop to MED."
+}

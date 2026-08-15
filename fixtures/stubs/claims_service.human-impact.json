@@ -1,0 +1,47 @@
+{
+  "findings": [
+    {
+      "kind": "documented_workflow",
+      "summary": "Billing specialists work an exception queue produced when remits fail to match, including the ssn tiebreaker path",
+      "evidence": {
+        "file": "README.md",
+        "line": 9,
+        "quote": "Its \"users\" are the ~30 billing specialists who live in the exception queue it produces"
+      },
+      "rating": "MED"
+    },
+    {
+      "kind": "report_export",
+      "summary": "837P files sent to the clearinghouse currently carry SSN as subscriber id for WC payers",
+      "evidence": {
+        "file": "README.md",
+        "line": 73,
+        "quote": "the SSN is written into the subscriber identification segment because that is what the payer's companion guide demands"
+      },
+      "rating": "HIGH"
+    }
+  ],
+  "hypothesized_consumers": [
+    {
+      "hypothesis": "Payer companion-guide owners (not Riverbend engineers) must bless a non-SSN subscriber id before ClaimBridge can ship a v3 enrichment.",
+      "evidence_trail": "README + payers.yaml subscriberIdSource: ssn for TN_WORKERS_COMP and LIBERTY_MUTUAL_WC.",
+      "confirm_by": "Revenue Cycle IT: is there a written alternate subscriber id for these two payers?",
+      "confidence": 0.7
+    }
+  ],
+  "flags": [
+    {
+      "kind": "comms",
+      "summary": "Do not announce a ClaimBridge PIS v3 migration to billing until the WC subscriber-id question is decided.",
+      "tied_to_finding": "837P files sent to the clearinghouse currently carry SSN as subscriber id for WC payers"
+    },
+    {
+      "kind": "uat_regression",
+      "summary": "If unblocked later, re-run the INC-2022-441 matcher case without an ssn key.",
+      "tied_to_finding": "Billing specialists work an exception queue produced when remits fail to match, including the ssn tiebreaker path"
+    }
+  ],
+  "overall_rating": "MED",
+  "rating_rationale": "No end-user UI. The HIGH finding is a payer/export contract, which the research agent already treats as a blocker; billing specialists are affected only if matching quality drops.",
+  "rating_would_change_if": "A documented billing SOP required staff to read SSN off the exception queue to match remits by hand."
+}

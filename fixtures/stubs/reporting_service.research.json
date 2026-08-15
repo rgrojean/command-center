@@ -1,0 +1,68 @@
+{
+  "repo": "reporting_service",
+  "verdict": "unaffected",
+  "call_sites": [
+    {
+      "file": "lib/pick.ts",
+      "line": 15,
+      "field": "patientId",
+      "usage": "transient dedup key inside a collector run; never written to marts or CSV exports"
+    }
+  ],
+  "persistence": [],
+  "required_changes": [],
+  "test_impact": {
+    "existing_tests": [
+      {
+        "name": "snapshots and extracts contain no ssn/name/patientId",
+        "file": "tests/aggregation.test.ts",
+        "will_break": false,
+        "why": "Assertions already forbid ssn/name/patientId in outputs; v3 dropping ssn/name is a no-op for those tests.",
+        "evidence": {
+          "file": "tests/aggregation.test.ts",
+          "line": 55,
+          "quote": "expect(csv).not.toMatch(/patientId|ssn|phone|name/i);"
+        }
+      }
+    ],
+    "recommended_new_tests": [
+      {
+        "name": "pick() still returns four fields when the payload has given/family/identifier and no ssn",
+        "fails_first_because": "Today pick() reads record.patientId; a raw v3 payload without patientId returns null and trips the 0.5% guard. If identifier.value is mapped at the collector edge as the same dedup token, this test is the fail-first proof. Not a report-contract change — listed here so M4 can attach probe evidence."
+      }
+    ]
+  },
+  "blockers": [],
+  "production_verification": {
+    "gaps": [
+      {
+        "deficiency": "Missing-field guard is the only contract alarm and is keyed on patientId|gender|dob|address.zip. A rename of patientId to identifier would look like mass missing fields, which is loud — good — but is not labeled as a PIS contract change.",
+        "evidence": {
+          "file": "collectors/demographics.ts",
+          "line": 54,
+          "quote": "(patientId|gender|dob|address.zip) — exceeds 0.5% threshold. Aborting run."
+        },
+        "recommended_instrumentation": "Keep the guard; add a run-level reason code 'projection_field_missing' (field names only, never values).",
+        "phi_safe": true
+      }
+    ]
+  },
+  "execution_grade": "mechanical",
+  "grade_reasoning": "ssn and name are dropped at pick() today. Reports do not emit patientId. A collector-edge map from identifier.value onto the existing dedup token would be mechanical and does not change published numbers — classified unaffected, not a write candidate.",
+  "confidence": {
+    "score": 0.8,
+    "rationale": "Projection is an explicit four-field pick. Residual uncertainty: whether M4 probe should still remap identifier.value inside pick() without calling that a migration."
+  },
+  "evidence": [
+    {
+      "file": "lib/pick.ts",
+      "line": 1,
+      "quote": "Explicit four-field pick — everything else dropped at projection (2022 privacy review)."
+    },
+    {
+      "file": "README.md",
+      "line": 43,
+      "quote": "patientId (carried only as a dedup key within the pull — it appears in no mart and no report)"
+    }
+  ]
+}

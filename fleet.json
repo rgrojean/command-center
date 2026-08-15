@@ -1,0 +1,58 @@
+{
+  "org": "rgrojean",
+  "baseline_tag": "baseline-v2",
+  "producer": "identity_service",
+  "repos": [
+    {
+      "slug": "identity_service",
+      "display_name": "PIS",
+      "github_url": "https://github.com/rgrojean/identity_service",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "api",
+      "role": "producer",
+      "port": 4110
+    },
+    {
+      "slug": "cadence_scheduling_service",
+      "display_name": "Cadence",
+      "github_url": "https://github.com/rgrojean/cadence_scheduling_service",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "api",
+      "role": "consumer",
+      "port": 3001,
+      "db_port": 5433
+    },
+    {
+      "slug": "claims_service",
+      "display_name": "ClaimBridge",
+      "github_url": "https://github.com/rgrojean/claims_service",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "batch",
+      "role": "consumer",
+      "db_port": 5434
+    },
+    {
+      "slug": "patient_portal",
+      "display_name": "MyRiverbend",
+      "github_url": "https://github.com/rgrojean/patient_portal",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "web",
+      "role": "consumer",
+      "port": 3107,
+      "db_port": 15432
+    },
+    {
+      "slug": "reporting_service",
+      "display_name": "Lighthouse",
+      "github_url": "https://github.com/rgrojean/reporting_service",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "batch",
+      "role": "consumer"
+    }
+  ]
+}

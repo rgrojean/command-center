@@ -1,0 +1,129 @@
+{
+  "repo": "claims_service",
+  "verdict": "blocked",
+  "call_sites": [
+    {
+      "file": "src/enrich/enrich.ts",
+      "line": 28,
+      "field": "ssn",
+      "usage": "written into subscriberId when payer.subscriberIdSource === 'ssn'"
+    },
+    {
+      "file": "src/enrich/enrich.ts",
+      "line": 37,
+      "field": "ssn",
+      "usage": "copied onto the enrichment snapshot as e.ssn"
+    },
+    {
+      "file": "src/reconcile/matcher.ts",
+      "line": 29,
+      "field": "ssn",
+      "usage": "tiebreaker after claim ref and member ID"
+    },
+    {
+      "file": "src/enrich/name.ts",
+      "line": 2,
+      "field": "name",
+      "usage": "split on a single comma into last/first for 837 NM1"
+    },
+    {
+      "file": "src/enrich/enrich.ts",
+      "line": 14,
+      "field": "patientId",
+      "usage": "GET /v2/patients/{patientId} per claim"
+    }
+  ],
+  "persistence": [
+    {
+      "store": "postgres:claims.ssn (7-year retention)",
+      "ddl_evidence": {
+        "file": "sql/schema.sql",
+        "line": 9,
+        "quote": "ssn TEXT,"
+      },
+      "write_path_evidence": {
+        "file": "src/db.ts",
+        "line": 18,
+        "quote": "e.ssn, e.lastName, e.firstName, e.dob, e.gender"
+      }
+    }
+  ],
+  "required_changes": [],
+  "test_impact": {
+    "existing_tests": [
+      {
+        "name": "enrich uses ssn for workers comp payers",
+        "file": "test/enrich.test.ts",
+        "will_break": true,
+        "why": "Asserts subscriberIdSource === 'ssn' and reads p.ssn; v3 has no ssn.",
+        "evidence": {
+          "file": "test/enrich.test.ts",
+          "line": 46,
+          "quote": "it('uses ssn for workers comp payers', () => {"
+        }
+      },
+      {
+        "name": "matcher falls back to ssn before name+dob",
+        "file": "test/matcher.test.ts",
+        "will_break": true,
+        "why": "Regression INC-2022-441 encodes ssn as a matching key.",
+        "evidence": {
+          "file": "test/matcher.test.ts",
+          "line": 40,
+          "quote": "regression INC-2022-441: falls back to ssn before name+dob"
+        }
+      }
+    ],
+    "recommended_new_tests": []
+  },
+  "blockers": [
+    {
+      "summary": "Workers-comp payers require SSN as subscriber id per companion guide; configured in payers.yaml.",
+      "evidence": {
+        "file": "config/payers.yaml",
+        "line": 10,
+        "quote": "subscriberIdSource: ssn"
+      }
+    },
+    {
+      "summary": "README states SSN is written into the 837 subscriber identification segment because that is what the payer's companion guide demands.",
+      "evidence": {
+        "file": "README.md",
+        "line": 73,
+        "quote": "for those claims the SSN is written into the subscriber identification segment because that is what the payer's companion guide demands"
+      }
+    }
+  ],
+  "production_verification": {
+    "gaps": [
+      {
+        "deficiency": "Enrichment has only incident-driven if (!p.x) guards; a missing ssn on a WC payer currently becomes an empty subscriber id and a denial weeks later.",
+        "evidence": {
+          "file": "src/enrich/enrich.ts",
+          "line": 21,
+          "quote": "incident-driven guards — not systematic validation"
+        },
+        "recommended_instrumentation": "Count enrichment records whose subscriberIdSource is ssn (payer id only in the label — not the identifier value) so a v3 cutover is visible the same night, not 30 days later in AR.",
+        "phi_safe": true
+      }
+    ]
+  },
+  "execution_grade": "judgment_heavy",
+  "grade_reasoning": "Statutory/payer companion-guide dependency on ssn cannot be migrated from this repo alone. Name split and identifier remapping would be contextual if the blocker were lifted; they are not sufficient.",
+  "confidence": {
+    "score": 0.92,
+    "rationale": "payers.yaml and README quote the companion-guide requirement directly; this is a complete blocker, not a missing-code problem."
+  },
+  "evidence": [
+    {
+      "file": "config/payers.yaml",
+      "line": 10,
+      "quote": "subscriberIdSource: ssn"
+    },
+    {
+      "file": "config/payers.yaml",
+      "line": 13,
+      "quote": "subscriberIdSource: ssn"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "repo": "cadence_scheduling_service",
+  "verdict": "affected",
+  "call_sites": [
+    {
+      "file": "src/pis-client/schema.ts",
+      "line": 18,
+      "field": "ssn",
+      "usage": "required on the strict Zod boundary; never read by application code"
+    },
+    {
+      "file": "src/pis-client/schema.ts",
+      "line": 15,
+      "field": "name",
+      "usage": "validated as a flat string"
+    },
+    {
+      "file": "src/pis-client/schema.ts",
+      "line": 14,
+      "field": "patientId",
+      "usage": "validated as a string identifier"
+    },
+    {
+      "file": "src/api/routes.ts",
+      "line": 33,
+      "field": "name",
+      "usage": "rendered on appointment cards as the PIS display string"
+    },
+    {
+      "file": "src/reminders/worker.ts",
+      "line": 30,
+      "field": "name",
+      "usage": "interpolated into outbound SMS reminder text"
+    },
+    {
+      "file": "src/pis-client/index.ts",
+      "line": 38,
+      "field": "patientId",
+      "usage": "path parameter GET /v2/patients/{patientId}"
+    },
+    {
+      "file": "src/db.ts",
+      "line": 16,
+      "field": "patientId",
+      "usage": "persisted as appointments.patient_id foreign key"
+    }
+  ],
+  "persistence": [
+    {
+      "store": "postgres:appointments.patient_id",
+      "ddl_evidence": {
+        "file": "src/db.ts",
+        "line": 16,
+        "quote": "patient_id TEXT NOT NULL"
+      },
+      "write_path_evidence": {
+        "file": "src/db.ts",
+        "line": 53,
+        "quote": "[appointmentId, slotId, patientId]"
+      }
+    }
+  ],
+  "required_changes": [
+    {
+      "id": "cadence-zod-v3",
+      "description": "Replace PatientV2 with a v3 schema: drop ssn, split name into given[]/family, replace patientId with identifier[]. Keep .strict() — no passthrough.",
+      "files": ["src/pis-client/schema.ts", "src/pis-client/index.ts"],
+      "evidence": {
+        "file": "src/pis-client/schema.ts",
+        "line": 18,
+        "quote": "ssn: z.string(), // present per v2 spec; not used by Cadence"
+      }
+    },
+    {
+      "id": "cadence-name-display",
+      "description": "Compose a display string from given[]/family for appointment cards and SMS. Do not invent a new name format beyond joining family + given.",
+      "files": ["src/api/routes.ts", "src/reminders/worker.ts"],
+      "evidence": {
+        "file": "src/reminders/worker.ts",
+        "line": 30,
+        "quote": "appointment for ${patient.name} on"
+      }
+    },
+    {
+      "id": "cadence-identifier",
+      "description": "Read the Riverbend-namespaced identifier.value for booking FKs and GET-by-id. Persist the same string in appointments.patient_id.",
+      "files": ["src/pis-client/index.ts", "src/db.ts", "src/api/routes.ts"],
+      "evidence": {
+        "file": "src/db.ts",
+        "line": 16,
+        "quote": "patient_id TEXT NOT NULL"
+      }
+    }
+  ],
+  "test_impact": {
+    "existing_tests": [
+      {
+        "name": "contract: fixtures parse as PatientV2",
+        "file": "test/contract.test.ts",
+        "will_break": true,
+        "why": "Recorded v2 fixtures still have ssn/name/patientId; v3 schema.parse will throw.",
+        "evidence": {
+          "file": "test/contract.test.ts",
+          "line": 7,
+          "quote": "const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), \"fixtures/pis\");"
+        }
+      },
+      {
+        "name": "reminders worker uses fixture name/phone",
+        "file": "test/reminders.test.ts",
+        "will_break": true,
+        "why": "Fixture patient-483921.json is v2-shaped; worker reads patient.name.",
+        "evidence": {
+          "file": "test/reminders.test.ts",
+          "line": 54,
+          "quote": "fetches patient phone/name from fixtures and logs an SMS (no live PIS)"
+        }
+      }
+    ],
+    "recommended_new_tests": [
+      {
+        "name": "PatientV3.parse accepts given/family/identifier and rejects ssn",
+        "fails_first_because": "Current schema requires ssn and a string name; the new test's v3 fixture fails parse until the schema change lands."
+      },
+      {
+        "name": "reminder SMS uses composed given/family, not a missing .name",
+        "fails_first_because": "Worker interpolates patient.name; a v3 patient object has no .name, so the assertion on message text fails first."
+      }
+    ]
+  },
+  "blockers": [],
+  "production_verification": {
+    "gaps": [
+      {
+        "deficiency": "Reminder worker fails closed on PIS errors but has no metric for schema.parse rejections, so a v3 cutover would look like a PIS outage.",
+        "evidence": {
+          "file": "README.md",
+          "line": 68,
+          "quote": "the worker now fails closed (no reminder rather than a possibly-wrong reminder)"
+        },
+        "recommended_instrumentation": "Count Zod parse failures separately from HTTP/network failures on the PIS client (no payload fields in the metric labels).",
+        "phi_safe": true
+      }
+    ]
+  },
+  "execution_grade": "contextual",
+  "grade_reasoning": "Schema and client updates are mechanical, but composing a display name from given[]/family and remapping the booking FK onto identifier.value are contextual. ssn is unused outside the schema.",
+  "confidence": {
+    "score": 0.86,
+    "rationale": "Call sites are in a small typed client; uncertainty is whether identifier.system values are documented in v3 yet (M1 OpenAPI)."
+  },
+  "evidence": [
+    {
+      "file": "README.md",
+      "line": 56,
+      "quote": "ssn is never read by application code; it is present in the schema because the schema mirrors the contract"
+    },
+    {
+      "file": "README.md",
+      "line": 60,
+      "quote": "No PIS data is persisted except patientId; demographics are fetched on read."
+    }
+  ]
+}
