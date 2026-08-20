@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #080a0b; }
+  a { color: #8fb8c9; }
+  a:hover { color: #bfdfeb; }
+  @keyframes fl-flow { to { background-position: 22px 0; } }
+  @keyframes fl-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  @keyframes fl-beacon { 0%,100% { box-shadow: 0 0 0 0 rgba(224,164,55,.5); } 50% { box-shadow: 0 0 0 8px rgba(224,164,55,0); } }
+  @keyframes fl-glow { 0%,100% { opacity: .35; } 50% { opacity: .9; } }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #293036; border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#080a0b;color:#e6eaec;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;padding-bottom:120px">
+
+  <div style="position:sticky;top:0;z-index:30;background:#0b0e10;border-bottom:1px solid #1c2226;padding:14px 26px;display:flex;align-items:center;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:9px">
+      <div style="font-family:Archivo,sans-serif;font-weight:900;font-size:19px;letter-spacing:.05em">SPEC MIGRATOR</div>
+      <div style="font-family:Archivo,sans-serif;font-weight:900;font-size:19px;letter-spacing:.05em;color:#080a0b;background:#e6eaec;padding:1px 7px;border-radius:2px">5000</div>
+    </div>
+    <div style="width:1px;height:26px;background:#1c2226"></div>
+    <div style="display:flex;gap:24px;font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:.14em;color:#8b959b">RUN</span><span>rn_2f81c4</span></div>
+      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:.14em;color:#8b959b">CLOCK</span><span style="{{ clockColor }}">{{ clock }}</span></div>
+      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:.14em;color:#8b959b">PHASE</span><span style="{{ phaseColor }}">{{ phase }}</span></div>
+    </div>
+    <div style="flex:1"></div>
+    <button onClick="{{ toggleStreams }}" style="{{ streamsBtn }}">{{ streamsLabel }}</button>
+  </div>
+
+  <div style="overflow-x:auto">
+    <div style="min-width:1560px;padding:24px 26px 0;display:flex;gap:0;align-items:stretch">
+
+      <div style="width:214px;flex-shrink:0;background:#0e1214;border:1px solid #1c2226;border-radius:4px;padding:16px;display:flex;flex-direction:column;gap:12px;align-self:flex-start">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="{{ diffDot }}"></div>
+          <div style="font-family:Archivo,sans-serif;font-weight:800;font-size:12.5px;letter-spacing:.14em;color:#e6eaec">SPEC DIFF</div>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#b8c0c5">patient.v2 → v3</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:12.5px">
+          <div style="padding:5px 8px;border-radius:2px;background:rgba(224,90,79,.11);border:1px solid rgba(224,90,79,.3);color:#eb8d83">− ssn</div>
+          <div style="padding:5px 8px;border-radius:2px;background:rgba(224,164,55,.1);border:1px solid rgba(224,164,55,.28);color:#e0a437">~ name → given/family</div>
+          <div style="padding:5px 8px;border-radius:2px;background:rgba(224,164,55,.1);border:1px solid rgba(224,164,55,.28);color:#e0a437">~ patientId → identifier[]</div>
+          <div style="padding:5px 8px;border-radius:2px;background:#12171a;border:1px solid #1c2226;color:#8b959b">= dob gender address</div>
+        </div>
+        <div style="border-top:1px solid #1a2024;padding-top:11px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8b959b;line-height:1.7">FLEET · 5 repos<br />1 producer · 4 consumers</div>
+      </div>
+
+      <div style="width:46px;flex-shrink:0;position:relative">
+        <div style="{{ trunkStyle }}"></div>
+      </div>
+
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;padding:0 0 10px 0">
+          <sc-for list="{{ columns }}" as="c" hint-placeholder-count="5">
+            <div style="{{ c.wrap }}">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="{{ c.dot }}"></div>
+                <span style="font-family:Archivo,sans-serif;font-weight:800;font-size:12px;letter-spacing:.16em;{{ c.labelColor }}">{{ c.label }}</span>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8b959b;margin-top:4px">{{ c.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border-top:1px solid #1a2024">
+          <sc-for list="{{ lanes }}" as="L" hint-placeholder-count="5">
+            <div style="display:flex;align-items:stretch;border-bottom:1px solid #1a2024;{{ L.laneBg }}">
+
+              <div style="width:44px;flex-shrink:0;display:flex;align-items:center"><div style="{{ L.stub }}"></div></div>
+
+              <div style="width:186px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:18px 14px 18px 0">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="{{ L.repoDot }}"></div>
+                  <span style="font-family:Archivo,sans-serif;font-weight:800;font-size:16px;{{ L.repoColor }}">{{ L.name }}</span>
+                </div>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8b959b">{{ L.kind }} · :{{ L.port }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#727d84">{{ L.slug }}</span>
+              </div>
+
+              <div style="width:40px;flex-shrink:0;display:flex;align-items:center"><div style="{{ L.edgeResearch }}"></div></div>
+
+              <div style="width:322px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;padding:14px 0">
+                <sc-for list="{{ L.agents }}" as="a" hint-placeholder-count="2">
+                  <div style="{{ a.box }}">
+                    <button onClick="{{ a.toggle }}" style="width:100%;background:none;border:none;padding:0;cursor:pointer;color:inherit;text-align:left;display:flex;align-items:center;gap:9px">
+                      <div style="{{ a.dot }}"></div>
+                      <span style="font-family:Archivo,sans-serif;font-weight:800;font-size:13px;letter-spacing:.14em;{{ a.nameColor }}">{{ a.callsign }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8b959b">{{ a.model }}</span>
+                      <div style="flex:1"></div>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;{{ a.metaColor }}">{{ a.meta }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#727d84">{{ a.caret }}</span>
+                    </button>
+                    <sc-if value="{{ a.showTick }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;{{ a.tickColor }}">{{ a.tick }}</div>
+                    </sc-if>
+                    <sc-if value="{{ a.expanded }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top:9px;border-top:1px solid #1c2226;padding-top:9px;display:flex;flex-direction:column;gap:3px;max-height:184px;overflow:auto">
+                        <sc-for list="{{ a.stream }}" as="e" hint-placeholder-count="4">
+                          <div style="display:flex;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.65">
+                            <span style="color:#727d84;flex-shrink:0">{{ e.t }}</span>
+                            <span style="{{ e.kindStyle }}">{{ e.kind }}</span>
+                            <span style="{{ e.textStyle }}">{{ e.text }}</span>
+                          </div>
+                        </sc-for>
+                        <sc-if value="{{ a.live }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8b959b;display:flex;gap:8px"><span style="animation:fl-pulse 1.1s infinite">▌</span><span>streaming</span></div>
+                        </sc-if>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="width:40px;flex-shrink:0;display:flex;align-items:center"><div style="{{ L.edgeGate }}"></div></div>
+
+              <div style="{{ L.gateCell }}">
+                <sc-if value="{{ L.gateReady }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+                      <span style="{{ L.verdictStyle }}">{{ L.verdict }}</span>
+                      <span style="{{ L.gandalfStyle }}">{{ L.gandalf }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#a3adb2">
+                      <span>{{ L.grade }}</span><span style="color:#727d84">→ {{ L.gradeModel }}</span>
+                    </div>
+                    <button onClick="{{ L.toggleSpec }}" style="align-self:flex-start;background:none;border:none;padding:0;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.1em;color:#8fb8c9">{{ L.specCaret }} EVIDENCE</button>
+                    <sc-if value="{{ L.specOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;gap:8px;border-left:2px solid #2b343a;padding-left:11px">
+                        <div style="display:flex;flex-wrap:wrap;gap:5px">
+                          <sc-for list="{{ L.sites }}" as="c" hint-placeholder-count="2">
+                            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:2px 7px;border-radius:2px;background:#12171a;border:1px solid #1c2226;color:#8fb8c9">{{ c }}</span>
+                          </sc-for>
+                        </div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.7;color:#d2d8db">“{{ L.quote }}”</div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8b959b">{{ L.cite }}</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ L.decidable }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;gap:6px">
+                        <button onClick="{{ L.approve }}" style="padding:7px 15px;background:#58c98a;border:none;color:#08110c;border-radius:2px;font-family:Archivo,sans-serif;font-weight:900;font-size:12px;letter-spacing:.14em;cursor:pointer" style-hover="background:#78dfa4">APPROVE</button>
+                        <button onClick="{{ L.reject }}" style="padding:7px 13px;background:none;border:1px solid rgba(224,90,79,.4);color:#eb8d83;border-radius:2px;font-family:Archivo,sans-serif;font-weight:800;font-size:12px;letter-spacing:.14em;cursor:pointer" style-hover="background:rgba(224,90,79,.14)">REJECT</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ L.decisionLabel }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ L.decisionStyle }}">{{ L.decisionLabel }}</div>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ L.gateWaiting }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#727d84">awaiting research</div>
+                </sc-if>
+              </div>
+
+              <div style="width:40px;flex-shrink:0;display:flex;align-items:center"><div style="{{ L.edgeWrite }}"></div></div>
+
+              <div style="width:214px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;padding:14px 0">
+                <sc-if value="{{ L.hasGimli }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ L.gimliBox }}">
+                    <div style="display:flex;align-items:center;gap:9px">
+                      <div style="{{ L.gimliDot }}"></div>
+                      <span style="font-family:Archivo,sans-serif;font-weight:800;font-size:13px;letter-spacing:.14em;{{ L.gimliColor }}">GIMLI</span>
+                      <div style="flex:1"></div>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;{{ L.gimliMetaColor }}">{{ L.gimliMeta }}</span>
+                    </div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;{{ L.gimliTickColor }}">{{ L.gimliTick }}</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ L.noWrite }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#727d84;padding-left:2px">{{ L.noWriteLabel }}</div>
+                </sc-if>
+              </div>
+
+              <div style="width:40px;flex-shrink:0;display:flex;align-items:center"><div style="{{ L.edgeOut }}"></div></div>
+
+              <div style="width:196px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:14px 0">
+                <sc-if value="{{ L.stamp }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ L.stampStyle }}">{{ L.stamp }}</div>
+                </sc-if>
+                <sc-if value="{{ L.pr }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:12px">
+                    <span style="{{ L.prColor }}">{{ L.pr }}</span>
+                    <sc-if value="{{ L.bugbot }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:11px;letter-spacing:.1em;padding:1px 6px;border-radius:2px;background:#12171a;border:1px solid #1c2226;color:#8fb8c9">BUGBOT</span>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ L.idleOut }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#727d84">—</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;padding:16px 0 0 44px">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border:1px dashed #232a2f;border-radius:3px">
+            <span style="font-family:Archivo,sans-serif;font-weight:900;font-size:12.5px;letter-spacing:.14em;color:#727d84">GOLLUM</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#727d84">v3 preflight probe · smoke vs baseline</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;color:#727d84;border:1px solid #232a2f;padding:1px 6px;border-radius:2px">M4</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border:1px dashed #232a2f;border-radius:3px">
+            <span style="font-family:Archivo,sans-serif;font-weight:900;font-size:12.5px;letter-spacing:.14em;color:#727d84">REVIEW FEEDBACK</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#727d84">PR comments loop back into spec revision</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;color:#727d84;border:1px solid #232a2f;padding:1px 6px;border-radius:2px">ROADMAP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:fixed;bottom:0;left:0;right:0;z-index:35;background:#0b0e10;border-top:1px solid #1c2226;padding:12px 26px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <button onClick="{{ restart }}" style="padding:9px 14px;background:none;border:1px solid #232a2f;color:#b8c0c5;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer" style-hover="border-color:#3a444b;color:#e6eaec">RESTART</button>
+      <button onClick="{{ togglePlay }}" style="{{ playBtn }}">{{ playLabel }}</button>
+      <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+        <div style="position:relative;height:6px;background:#151a1e;border-radius:3px;overflow:hidden">
+          <div style="{{ progressStyle }}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em">
+          <sc-for list="{{ marks }}" as="m" hint-placeholder-count="5">
+            <span style="{{ m.color }}">{{ m.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#b8c0c5;width:190px;text-align:right">{{ hint }}</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:900}}">
+const GREEN = '#58c98a', AMBER = '#e0a437', RED = '#e05a4f', DIM = '#727d84', TXT = '#e6eaec';
+const GATE_T = 34, SPEED = 3.2;
+
+const chip = (bg, bd, fg) => ({ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11.5px', letterSpacing: '.1em', padding: '3px 8px', borderRadius: '2px', background: bg, border: '1px solid ' + bd, color: fg });
+const VERDICT = {
+  AFFECTED: chip('rgba(224,164,55,.1)', 'rgba(224,164,55,.3)', AMBER),
+  BLOCKED: chip('rgba(224,90,79,.11)', 'rgba(224,90,79,.32)', '#eb8d83'),
+  UNAFFECTED: chip('rgba(88,201,138,.08)', 'rgba(88,201,138,.28)', GREEN)
+};
+const dot = (c, pulse) => ({ width: '8px', height: '8px', borderRadius: '50%', background: c, flexShrink: 0, animation: pulse ? 'fl-pulse 1.3s infinite' : 'none' });
+const stamp = (c, tilt) => ({ alignSelf: 'flex-start', fontFamily: 'Archivo,sans-serif', fontWeight: 900, fontSize: '12.5px', letterSpacing: '.13em', color: c, border: '1.5px solid ' + c, borderRadius: '2px', padding: '5px 10px', opacity: .85, transform: 'rotate(' + tilt + 'deg)', backgroundImage: 'repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px)' });
+
+// edge = the water. 'flow' animates, 'full' is settled, 'dry' is untouched.
+const edge = (mode, color) => {
+  const base = { height: '2px', width: '100%', borderRadius: '2px' };
+  if (mode === 'flow') return Object.assign(base, { backgroundImage: 'repeating-linear-gradient(90deg,' + color + ' 0 7px,rgba(0,0,0,0) 7px 22px)', backgroundSize: '22px 2px', animation: 'fl-flow .55s linear infinite' });
+  if (mode === 'full') return Object.assign(base, { background: color, opacity: .5 });
+  return Object.assign(base, { height: '1px', background: '#1e2429' });
+};
+
+const ev = (t, kind, text) => ({ t, kind, text });
+
+const LANES = [
+  { slug: 'patient_registry_api', name: 'Registry', kind: 'api', port: 3000, verdict: 'UNAFFECTED', grade: 'mechanical', gradeModel: 'grok-4.6',
+    sites: ['openapi/patient.v3.yaml:1'], quote: 'This service publishes the spec; it does not consume it.', cite: 'README.md:12',
+    write: null, stamp: 'UNAFFECTED', stampColor: DIM, tilt: -1, pr: 'no action', prColor: DIM,
+    agents: [
+      { callsign: 'LEGOLAS', model: 'grok-4.6', start: 3, dur: 9, events: [ev(0, 'READ', 'openapi/patient.v3.yaml'), ev(2, 'GREP', 'consumer imports → 0 hits'), ev(5, 'NOTE', 'producer of record'), ev(8, 'DONE', 'verdict=UNAFFECTED')] },
+      { callsign: 'BILBO', model: 'claude-sonnet-4.5', start: 3, dur: 7, events: [ev(0, 'SCAN', 'no human-facing surface'), ev(4, 'DONE', 'impact=LOW')] }
+    ] },
+  { slug: 'cadence_scheduling_service', name: 'Cadence', kind: 'api', port: 3001, verdict: 'AFFECTED', grade: 'contextual', gradeModel: 'grok-4.6',
+    sites: ['patient_client.rb:63', 'patient_client.rb:104', 'appointment.rb:22'], quote: 'Hi <%= patient.full_name %>, your appointment is confirmed for', cite: 'app/mailers/reminder_mailer.rb:31',
+    write: { start: 2, dur: 14, events: ['branch spec-migrate/patient-v3', 'rewriting patient_client.rb', 'migration: drop ssn, split name', 'rspec 41 examples 0 failures', 'PR #218 opened'] },
+    stamp: 'MIGRATED_VERIFIED', stampColor: GREEN, tilt: -1.3, pr: 'PR #218 ↗', prColor: '#8fb8c9', bugbot: true,
+    agents: [
+      { callsign: 'LEGOLAS', model: 'grok-4.6', start: 4, dur: 16, events: [ev(0, 'READ', 'openapi/patient.v2.yaml'), ev(2, 'GREP', 'ssn|patientId → 14 hits / 6 files'), ev(5, 'READ', 'src/clients/patient_client.rb:40-118'), ev(8, 'READ', 'db/schema.rb · patient_cache'), ev(11, 'RUN', 'rspec spec/clients — 41 pass'), ev(14, 'DONE', 'AFFECTED · 3 sites · 1 DDL')] },
+      { callsign: 'BILBO', model: 'claude-sonnet-4.5', start: 4, dur: 12, events: [ev(0, 'READ', 'app/mailers/reminder_mailer.rb'), ev(3, 'GREP', 'full_name → 9 hits in views'), ev(7, 'NOTE', 'reminders address patients by name'), ev(10, 'DONE', 'impact=MED · reversible')] }
+    ] },
+  { slug: 'claims_service', name: 'Claims', kind: 'batch', port: 3002, verdict: 'AFFECTED', grade: 'mechanical', gradeModel: 'grok-4.6',
+    sites: ['import_claims.rb:74', 'import_claims.rb:130'], quote: 'patient_id = row.fetch("patientId")', cite: 'jobs/import_claims.rb:74',
+    write: { start: 4, dur: 10, events: ['branch spec-migrate/patient-v3', 'rewriting jobs/import_claims.rb', 'nightly fixture replay clean', 'PR #45 opened'] },
+    stamp: 'MIGRATED_VERIFIED', stampColor: GREEN, tilt: 1, pr: 'PR #45 ↗', prColor: '#8fb8c9',
+    agents: [
+      { callsign: 'LEGOLAS', model: 'grok-4.6', start: 6, dur: 13, events: [ev(0, 'GREP', 'patientId → 2 hits / 1 file'), ev(4, 'READ', 'jobs/import_claims.rb'), ev(8, 'RUN', 'fixture replay — clean'), ev(11, 'DONE', 'AFFECTED · mechanical')] },
+      { callsign: 'BILBO', model: 'claude-sonnet-4.5', start: 6, dur: 9, events: [ev(0, 'SCAN', 'batch only · aggregate reporting'), ev(6, 'DONE', 'impact=LOW')] }
+    ] },
+  { slug: 'lighthouse_member_portal', name: 'Lighthouse', kind: 'web', port: 3003, verdict: 'AFFECTED', grade: 'judgment_heavy', gradeModel: 'claude-opus-4.1',
+    sites: ['member_card.html:88', 'api/patients.py:48', 'support/lookup.py:16'], quote: '<div class="mc-ssn">{{ member.ssn }}</div>', cite: 'templates/member_card.html:88',
+    write: { start: 3, dur: 20, events: ['branch spec-migrate/patient-v3', 'rewriting api/patients.py', 'replacing members.ssn index', 'FLAG: member_card layout needs human eyes', 'PR #77 opened · review required'] },
+    stamp: 'MIGRATED_WITH_FLAGS', stampColor: GREEN, tilt: 1.4, pr: 'PR #77 ↗ review required', prColor: AMBER, bugbot: true,
+    agents: [
+      { callsign: 'LEGOLAS', model: 'grok-4.6', start: 5, dur: 21, events: [ev(0, 'GREP', 'ssn → 11 hits / 6 files'), ev(4, 'READ', 'api/patients.py:20-140'), ev(8, 'READ', 'migrations/0041_member.sql'), ev(12, 'NOTE', 'members.ssn is an indexed lookup key'), ev(16, 'RUN', 'pytest -k patient — 88 pass'), ev(19, 'DONE', 'AFFECTED · 11 sites')] },
+      { callsign: 'BILBO', model: 'claude-opus-4.1', start: 5, dur: 25, events: [ev(0, 'NOTE', 'author marked this repo "likely unaffected"'), ev(4, 'READ', 'templates/member_card.html'), ev(8, 'NOTE', 'ssn is printed on the member card'), ev(13, 'READ', 'support/macros/verify_identity.md'), ev(17, 'NOTE', 'support verifies callers by last 4'), ev(21, 'DONE', 'impact=HIGH · overturns LOW')] }
+    ] },
+  { slug: 'ledger_billing_sync', name: 'Ledger', kind: 'batch', port: 3004, verdict: 'BLOCKED', grade: 'judgment_heavy', gradeModel: 'claude-opus-4.1', blocked: true,
+    sites: ['remittance.rb:140', 'payer_meridian.md:214'], quote: 'Remittance files SHALL include the subscriber SSN as specified in Exhibit B until the amendment is countersigned.', cite: 'contracts/payer_meridian.md:214',
+    write: null, stamp: 'BLOCKED', stampColor: RED, tilt: 1.6, pr: 'escalated ↗', prColor: '#eb8d83',
+    agents: [
+      { callsign: 'LEGOLAS', model: 'grok-4.6', start: 7, dur: 18, events: [ev(0, 'GREP', 'ssn → 6 hits / 3 files'), ev(4, 'READ', 'jobs/remittance.rb'), ev(9, 'READ', 'contracts/payer_meridian.md'), ev(13, 'NOTE', 'payer contract pins ssn in remittance'), ev(16, 'DONE', 'BLOCKED · organizational')] },
+      { callsign: 'BILBO', model: 'claude-sonnet-4.5', start: 7, dur: 14, events: [ev(0, 'NOTE', '2 payers · nightly payment posting'), ev(6, 'NOTE', '~8k claims/night delayed if it fails'), ev(11, 'DONE', 'impact=HIGH')] }
+    ] }
+];
+
+const fmt = (t) => {
+  const s = Math.max(0, Math.floor(t));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+};
+
+class Component extends DCLogic {
+  state = { t: 0, playing: true, released: false, releaseAt: null, decisions: {}, exp: {}, spec: {}, allStreams: false };
+
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      if (!this.state.playing) return;
+      this.setState(s => {
+        let t = s.t + 0.1 * SPEED;
+        if (!s.released && t >= GATE_T) return { t: GATE_T, playing: false };
+        if (t >= this.endT()) return { t: this.endT(), playing: false };
+        return { t };
+      });
+    }, 100);
+  }
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  endT() { const r = this.state.releaseAt; return r == null ? GATE_T : r + 26; }
+
+  toggle = (k) => () => this.setState(s => ({ exp: Object.assign({}, s.exp, { [k]: !s.exp[k] }) }));
+  toggleSpec = (k) => () => this.setState(s => ({ spec: Object.assign({}, s.spec, { [k]: !s.spec[k] }) }));
+  decide = (slug, d) => () => this.setState(s => {
+    const decisions = Object.assign({}, s.decisions, { [slug]: d });
+    const need = LANES.filter(l => !l.blocked && l.verdict === 'AFFECTED').length;
+    const done = Object.keys(decisions).length >= need;
+    return done ? { decisions, released: true, releaseAt: s.t, playing: true } : { decisions };
+  });
+
+  agentState(a) {
+    const t = this.state.t;
+    if (t < a.start) return 'idle';
+    return t < a.start + a.dur ? 'running' : 'done';
+  }
+
+  renderVals() {
+    const s = this.state, t = s.t;
+    const researchDone = LANES.every(l => l.agents.every(a => t >= a.start + a.dur));
+    const gateOpen = researchDone;
+    const rel = s.releaseAt;
+
+    const stageOf = () => {
+      if (t < 3) return 'DIFF';
+      if (!gateOpen) return 'RESEARCH';
+      if (!s.released) return 'GATE · HOLDING';
+      return t < rel + 24 ? 'WRITE' : 'REPORT';
+    };
+    const phase = stageOf();
+
+    const colDefs = [
+      ['FLEET', 'repos under watch', 186 + 44, t > 1],
+      ['RESEARCH', 'LEGOLAS · BILBO', 322 + 40, t >= 3],
+      ['GATE', 'GANDALF · human', 260 + 40, gateOpen],
+      ['WRITE', 'GIMLI', 214 + 40, s.released],
+      ['REPORT', 'PRs · escalations', 196 + 40, s.released && t > rel + 12]
+    ];
+    const columns = colDefs.map(([label, sub, w, on]) => ({
+      label, sub, wrap: { width: w + 'px', flexShrink: 0, paddingLeft: label === 'FLEET' ? '44px' : '0' },
+      dot: dot(on ? (label === 'GATE' && !s.released ? AMBER : GREEN) : '#2b343a', label === 'GATE' && gateOpen && !s.released),
+      labelColor: 'color:' + (on ? TXT : '#5c666d')
+    }));
+
+    const lanes = LANES.map(L => {
+      const agents = L.agents.map(a => {
+        const st = this.agentState(a), key = L.slug + '-' + a.callsign;
+        const elapsed = Math.min(t - a.start, a.dur);
+        const shown = st === 'idle' ? [] : a.events.filter(e => e.t <= elapsed);
+        const last = shown[shown.length - 1];
+        const running = st === 'running', done = st === 'done';
+        const color = running ? AMBER : done ? GREEN : '#3a444b';
+        const expanded = !!(s.exp[key] || s.allStreams) && st !== 'idle';
+        return {
+          callsign: a.callsign, model: a.model, toggle: this.toggle(key), expanded,
+          dot: dot(color, running),
+          nameColor: 'color:' + (st === 'idle' ? '#5c666d' : TXT),
+          meta: running ? fmt(elapsed) : done ? fmt(a.dur) : 'queued',
+          metaColor: 'color:' + (running ? AMBER : done ? '#8b959b' : DIM),
+          caret: expanded ? '▾' : '▸',
+          showTick: !expanded,
+          tick: st === 'idle' ? 'waiting for fan-out' : last ? last.kind.toLowerCase() + ' ' + last.text : 'starting…',
+          tickColor: 'color:' + (running ? '#d9bb7a' : st === 'idle' ? DIM : '#a3adb2'),
+          live: running,
+          stream: shown.map(e => ({
+            t: fmt(a.start + e.t), kind: e.kind, text: e.text,
+            kindStyle: { width: '44px', flexShrink: 0, color: e.kind === 'DONE' ? GREEN : e.kind === 'NOTE' ? AMBER : '#8fb8c9' },
+            textStyle: { color: e.kind === 'NOTE' ? '#e0c48f' : '#c6cdd1' }
+          })),
+          box: { background: running ? '#12140f' : st === 'done' ? '#0e1214' : '#0b0e10', border: '1px solid ' + (running ? 'rgba(224,164,55,.3)' : '#1c2226'), borderRadius: '3px', padding: '11px 12px', minWidth: 0 }
+        };
+      });
+
+      const laneResearchOn = L.agents.some(a => this.agentState(a) === 'running');
+      const laneResearchDone = L.agents.every(a => this.agentState(a) === 'done');
+      const decision = s.decisions[L.slug];
+      const w = L.write;
+      const wStart = rel == null || !w ? null : rel + w.start;
+      const wState = wStart == null ? 'idle' : t < wStart ? 'idle' : t < wStart + w.dur ? 'running' : 'done';
+      const wElapsed = wStart == null ? 0 : Math.min(t - wStart, w ? w.dur : 0);
+      const wLineIdx = w ? Math.min(w.events.length - 1, Math.floor((wElapsed / w.dur) * w.events.length)) : 0;
+      const terminal = wState === 'done' || (L.blocked && gateOpen && s.released) || (L.verdict === 'UNAFFECTED' && laneResearchDone);
+
+      const gimliColor = wState === 'running' ? AMBER : wState === 'done' ? GREEN : '#3a444b';
+      const decisionLabel = L.verdict === 'UNAFFECTED' ? (gateOpen ? 'AUTO-PASS · NO WRITE' : null)
+        : decision === 'approved' ? 'APPROVED · QUEUED' : decision === 'rejected' ? 'REJECTED'
+        : L.blocked && gateOpen ? 'YOU SHALL NOT PASS' : null;
+
+      return {
+        name: L.name, slug: L.slug, kind: L.kind, port: L.port, agents,
+        verdict: L.verdict, verdictStyle: VERDICT[L.verdict], grade: L.grade, gradeModel: L.gradeModel,
+        sites: L.sites, quote: L.quote, cite: L.cite,
+        laneBg: laneResearchOn || wState === 'running' ? 'background:rgba(224,164,55,.022)' : '',
+        repoDot: dot(laneResearchDone ? (L.blocked ? RED : GREEN) : laneResearchOn ? AMBER : '#2b343a', laneResearchOn),
+        repoColor: 'color:' + (t > 1 ? TXT : '#5c666d'),
+        stub: edge(laneResearchOn ? 'flow' : t > 2 ? 'full' : 'dry', AMBER),
+        edgeResearch: edge(laneResearchOn ? 'flow' : laneResearchDone ? 'full' : 'dry', laneResearchOn ? AMBER : GREEN),
+        edgeGate: edge(laneResearchDone && !decision && !L.blocked && gateOpen ? 'flow' : laneResearchDone ? 'full' : 'dry', laneResearchDone && !decision ? AMBER : GREEN),
+        edgeWrite: edge(wState === 'running' ? 'flow' : wState === 'done' ? 'full' : 'dry', wState === 'running' ? AMBER : GREEN),
+        edgeOut: edge(terminal ? 'full' : 'dry', L.blocked ? RED : GREEN),
+        gateCell: { width: '260px', flexShrink: 0, padding: '14px 16px', background: gateOpen && !s.released ? 'rgba(224,164,55,.05)' : 'rgba(255,255,255,.012)', borderLeft: '1px solid ' + (gateOpen && !s.released ? 'rgba(224,164,55,.22)' : '#1a2024'), borderRight: '1px solid ' + (gateOpen && !s.released ? 'rgba(224,164,55,.22)' : '#1a2024'), display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+        gateReady: laneResearchDone, gateWaiting: !laneResearchDone,
+        gandalf: L.blocked ? 'GANDALF · HELD' : 'GANDALF · PASS',
+        gandalfStyle: chip(L.blocked ? 'rgba(224,90,79,.1)' : 'rgba(143,184,201,.07)', L.blocked ? 'rgba(224,90,79,.3)' : '#26333a', L.blocked ? '#eb8d83' : '#8fb8c9'),
+        toggleSpec: this.toggleSpec(L.slug), specOpen: !!s.spec[L.slug], specCaret: s.spec[L.slug] ? '▾' : '▸',
+        decidable: gateOpen && !L.blocked && !decision && L.verdict === 'AFFECTED',
+        approve: this.decide(L.slug, 'approved'), reject: this.decide(L.slug, 'rejected'),
+        decisionLabel,
+        decisionStyle: { fontFamily: 'Archivo,sans-serif', fontWeight: 800, fontSize: '12px', letterSpacing: '.14em', color: L.verdict === 'UNAFFECTED' ? '#8b959b' : decision === 'approved' ? GREEN : '#eb8d83' },
+        hasGimli: !!w && s.released && decision === 'approved',
+        gimliBox: { background: wState === 'running' ? '#12140f' : wState === 'done' ? '#0e1214' : '#0b0e10', border: '1px solid ' + (wState === 'running' ? 'rgba(224,164,55,.3)' : '#1c2226'), borderRadius: '3px', padding: '11px 12px' },
+        gimliDot: dot(gimliColor, wState === 'running'),
+        gimliColor: 'color:' + (wState === 'idle' ? '#5c666d' : TXT),
+        gimliMeta: wState === 'running' ? fmt(wElapsed) : wState === 'done' ? fmt(w.dur) : 'queued',
+        gimliMetaColor: 'color:' + (wState === 'running' ? AMBER : '#8b959b'),
+        gimliTick: w ? (wState === 'idle' ? 'waiting for release' : w.events[wLineIdx]) : '',
+        gimliTickColor: 'color:' + (wState === 'running' ? '#d9bb7a' : '#a3adb2'),
+        noWrite: (!w && gateOpen) || (!!w && (!s.released || decision !== 'approved')),
+        noWriteLabel: !w ? (L.blocked ? 'no write · escalation' : 'nothing to migrate') : decision === 'rejected' ? 'write cancelled' : 'awaiting gate',
+        stamp: terminal ? L.stamp : null, stampStyle: stamp(L.stampColor, L.tilt),
+        pr: terminal ? L.pr : null, prColor: 'color:' + L.prColor, bugbot: terminal && !!L.bugbot,
+        idleOut: !terminal
+      };
+    });
+
+    const endT = this.endT();
+    const marks = [['DIFF', 0], ['RESEARCH', 3], ['GATE', GATE_T], ['WRITE', rel == null ? null : rel + 2], ['REPORT', rel == null ? null : rel + 24]]
+      .map(([label, at]) => ({ label, color: 'color:' + (at != null && t >= at ? (label === 'GATE' && !s.released ? AMBER : GREEN) : '#5c666d') }));
+
+    return {
+      clock: fmt(t), clockColor: 'color:' + (s.playing ? TXT : AMBER),
+      phase, phaseColor: 'color:' + (phase.indexOf('GATE') === 0 ? AMBER : phase === 'REPORT' ? GREEN : TXT),
+      diffDot: dot(t > 1 ? GREEN : AMBER, t <= 1),
+      trunkStyle: { position: 'absolute', left: '22px', top: '46px', bottom: '90px', width: '2px', background: t > 2 ? 'rgba(88,201,138,.35)' : '#1e2429' },
+      columns, lanes, marks,
+      togglePlay: () => this.setState(st => (!st.released && st.t >= GATE_T ? { playing: false } : { playing: !st.playing })),
+      playLabel: !s.released && t >= GATE_T ? 'HELD AT GATE' : s.playing ? 'PAUSE' : 'PLAY',
+      playBtn: { padding: '9px 20px', border: 'none', borderRadius: '2px', cursor: !s.released && t >= GATE_T ? 'not-allowed' : 'pointer', fontFamily: 'Archivo,sans-serif', fontWeight: 900, fontSize: '12.5px', letterSpacing: '.14em', background: !s.released && t >= GATE_T ? 'rgba(224,164,55,.14)' : s.playing ? '#232a2f' : GREEN, color: !s.released && t >= GATE_T ? AMBER : s.playing ? TXT : '#08110c', animation: !s.released && t >= GATE_T ? 'fl-beacon 1.9s infinite' : 'none' },
+      restart: () => this.setState({ t: 0, playing: true, released: false, releaseAt: null, decisions: {}, spec: {} }),
+      progressStyle: { height: '100%', width: Math.min(100, (t / endT) * 100) + '%', background: !s.released && t >= GATE_T ? AMBER : GREEN, opacity: .8, borderRadius: '3px' },
+      hint: !s.released && t >= GATE_T ? 'decide every spec to release' : s.released && t >= endT ? 'run complete' : 'streams collapsed · click a callsign',
+      toggleStreams: () => this.setState(st => ({ allStreams: !st.allStreams })),
+      streamsLabel: s.allStreams ? 'COLLAPSE ALL STREAMS' : 'EXPAND ALL STREAMS',
+      streamsBtn: { padding: '8px 14px', borderRadius: '2px', cursor: 'pointer', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', background: s.allStreams ? '#232a2f' : 'none', border: '1px solid #232a2f', color: '#b8c0c5' }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

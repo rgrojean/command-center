@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>SPEC MIGRATOR 5000</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div id="login-gate" class="gate">
+    <form id="login-form" class="gate-card" autocomplete="off">
+      <div class="gate-kicker">SPEC MIGRATOR 5000</div>
+      <h1>DEMO ACCESS</h1>
+      <p>This hosted demo is password-gated. LIVE runs Cursor agents on the operator’s API key.</p>
+      <label for="login-password">PASSWORD</label>
+      <input id="login-password" type="password" name="password" autofocus/>
+      <div id="login-error" class="gate-error hidden"></div>
+      <button class="primary" type="submit">ENTER</button>
+    </form>
+  </div>
+
+  <div id="overview" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-scrim"></div>
+    <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="overview-title">
+      <div class="dossier-kicker">WALKTHROUGH</div>
+      <h2 id="overview-title">How a run works</h2>
+      <ol class="overview-steps">
+        <li><strong>Point at a spec pair.</strong> Defaults are a bundled v2/v3 OpenAPI sample and fleet.json. Swap either file to try your own APIs.</li>
+        <li><strong>Check LIVE</strong> to spend real Cursor credits researching each consumer. Leave it off for a fast stub rehearsal (canned fixtures, no API key calls).</li>
+        <li><strong>NEXT</strong> opens the swimlane. Before RUN, add optional business context — domain notes injected into LEGOLAS (research) and GIMLI (write).</li>
+        <li>Research fans out per repo. You approve or reject at the gate. Approved write agents open a PR artifact (this demo does not push to your GitHub unless configured).</li>
+      </ol>
+      <p class="muted">Download the sample fleet.json if you want a template for your own repos. Specs stay OpenAPI — nothing here is locked to one industry.</p>
+      <button id="overview-ok" class="primary" type="button">OK</button>
+    </div>
+  </div>
+
+  <div id="coach" class="coach hidden" aria-hidden="true">
+    <div id="coach-spot" class="coach-spot"></div>
+    <div id="coach-tip" class="coach-tip">
+      <div id="coach-text"></div>
+      <button id="coach-next" class="primary" type="button">GOT IT</button>
+    </div>
+  </div>
+
+  <div id="context-modal" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-scrim"></div>
+    <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="context-title">
+      <div class="dossier-kicker">BEFORE YOU RUN</div>
+      <h2 id="context-title">Add business context</h2>
+      <p>Optional. One note per line. Injected into LEGOLAS and GIMLI so they know how this API is used — compliance rules, naming conventions, what must not be shimmed.</p>
+      <textarea id="context-text" rows="6" placeholder="e.g. Identifier.system must stay the primary EHR id&#10;e.g. Do not invent a compatibility field for anything removed"></textarea>
+      <div class="overlay-actions">
+        <button id="context-skip" class="ghost" type="button">SKIP</button>
+        <button id="context-apply" class="primary" type="button">SAVE &amp; CONTINUE</button>
+      </div>
+    </div>
+  </div>
+  <header class="header">
+    <div class="wordmark">
+      <div class="name">SPEC MIGRATOR</div>
+      <div class="badge">5000</div>
+    </div>
+    <div class="header-rule"></div>
+    <div class="stat"><span>RUN</span><span id="stat-run">—</span></div>
+    <div class="stat"><span>CLOCK</span><span id="stat-clock">00:00</span></div>
+    <div class="stat"><span>PHASE</span><span id="stat-phase">ENGAGE</span></div>
+    <div class="header-spacer"></div>
+    <div class="header-actions">
+      <div id="mode-chip" class="mode-chip rehearsal">STUB REHEARSAL</div>
+      <button id="arch-btn" class="ghost" type="button" aria-expanded="false" aria-controls="arch">ARCHITECTURE</button>
+      <button id="streams-btn" class="ghost hidden" type="button">EXPAND ALL STREAMS</button>
+    </div>
+  </header>
+
+  <main id="landing" class="landing">
+    <h1>POINT AT A FLEET</h1>
+    <p class="lede">Upload a current OpenAPI spec, a breaking spec, and a fleet.json — or keep the bundled sample. Next opens the swimlane. Run starts research. The gate holds until you decide.</p>
+    <form id="engage-form">
+      <div class="field">
+        <label for="v2-file">CURRENT SPEC (v2)</label>
+        <div class="row">
+          <input id="v2-path" type="text" readonly/>
+          <input id="v2-file" type="file" accept=".yaml,.yml,.json,text/yaml,application/json"/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="v3-file">NEW SPEC (v3)</label>
+        <div class="row">
+          <input id="v3-path" type="text" readonly/>
+          <input id="v3-file" type="file" accept=".yaml,.yml,.json,text/yaml,application/json"/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fleet-file">FLEET.JSON</label>
+        <div class="row">
+          <input id="fleet-path" type="text" readonly/>
+          <input id="fleet-file" type="file" accept=".json,application/json"/>
+        </div>
+        <div class="field-links">
+          <button id="dl-fleet" class="linkish" type="button">Download sample fleet.json</button>
+          <button id="dl-v2" class="linkish" type="button">v2 spec</button>
+          <button id="dl-v3" class="linkish" type="button">v3 spec</button>
+        </div>
+      </div>
+      <div id="preview" class="preview-box">Loading defaults…</div>
+      <div class="landing-actions">
+        <button id="next-btn" class="primary" type="button" disabled>NEXT</button>
+        <button id="last-run-btn" class="ghost" type="button">OPEN LAST RUN</button>
+        <label id="live-toggle" class="mode-toggle disabled">
+          <input id="live-check" type="checkbox" disabled/>
+          LIVE
+        </label>
+      </div>
+    </form>
+  </main>
+
+  <div id="board" class="hidden">
+    <div class="canvas-wrap">
+      <div class="canvas" id="canvas"></div>
+    </div>
+  </div>
+
+  <div class="transport">
+      <button id="restart-btn" class="ghost" type="button">RESTART</button>
+      <button id="run-btn" class="primary" type="button" disabled>RUN</button>
+      <button id="kill-btn" class="kill" type="button" disabled>KILL</button>
+    <div class="progress">
+      <div class="track"><div id="fill" class="fill" style="width:0%"></div></div>
+      <div class="marks" id="marks">
+        <span class="off">DIFF</span><span class="off">RESEARCH</span><span class="off">GATE</span><span class="off">WRITE</span><span class="off">REPORT</span>
+      </div>
+    </div>
+    <div id="hint" class="hint">upload specs · then next</div>
+  </div>
+
+  <div id="arch" class="arch" aria-hidden="true">
+    <div class="arch-scrim" data-close-arch="1"></div>
+    <aside class="arch-panel" role="dialog" aria-modal="true" aria-labelledby="arch-title">
+      <div class="arch-head">
+        <div>
+          <div class="dossier-kicker">ARCHITECTURE</div>
+          <div id="arch-title" class="dossier-title">WHERE THE DECISIONS LIVE</div>
+          <div class="dossier-sub">deterministic in · probabilistic middle · deterministic out</div>
+        </div>
+        <button id="arch-close" class="ghost" type="button">CLOSE</button>
+      </div>
+      <div id="arch-body" class="arch-body"></div>
+    </aside>
+  </div>
+
+  <div id="dossier" class="dossier hidden">
+    <div class="dossier-scrim" data-close-dossier="1"></div>
+    <div class="dossier-panel" role="dialog" aria-modal="true" aria-labelledby="dossier-title">
+      <div class="dossier-head">
+        <div>
+          <div id="dossier-kicker" class="dossier-kicker"></div>
+          <div id="dossier-title" class="dossier-title"></div>
+          <div id="dossier-sub" class="dossier-sub"></div>
+        </div>
+        <div class="dossier-actions">
+          <button id="dossier-copy" class="icon-btn" type="button" aria-label="Copy contents" title="Copy contents">
+            <span class="copy-glyph" aria-hidden="true"></span>
+          </button>
+          <button id="dossier-close" class="ghost" type="button">CLOSE</button>
+        </div>
+      </div>
+      <div id="dossier-body" class="dossier-body"></div>
+    </div>
+  </div>
+
+  <script src="/architecture.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

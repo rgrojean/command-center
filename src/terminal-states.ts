@@ -18,6 +18,7 @@ export const PIPELINE_STAGES = [
   "human_impact",
   "merge",
   "validate",
+  "hygiene",
   "gate",
   "write",
   "escalate_write",

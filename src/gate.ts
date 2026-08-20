@@ -12,8 +12,8 @@ function renderSpec(repo: FleetRepo, spec: MigrationSpec): string {
     `${repo.display_name}  (${spec.repo})`,
     "═".repeat(72),
     `verdict:          ${spec.verdict}`,
-    `execution_grade:  ${spec.execution_grade}`,
-    `grade_reasoning:  ${spec.grade_reasoning}`,
+    `execution_grade:  ${spec.execution_grade ?? "(n/a — not affected)"}`,
+    `grade_reasoning:  ${spec.grade_reasoning ?? "(n/a)"}`,
     `confidence:       ${spec.confidence.score} — ${spec.confidence.rationale}`,
     `human impact:     ${spec.downstream_impacts.overall_rating} — ${spec.downstream_impacts.rating_rationale}`,
     "",
@@ -38,7 +38,8 @@ function renderSpec(repo: FleetRepo, spec: MigrationSpec): string {
     "blockers:",
     ...(spec.blockers.length
       ? spec.blockers.map(
-          (b) => `  - ${b.summary}\n      "${b.evidence.quote}" (${b.evidence.file})`,
+          (b) =>
+            `  - [${b.class}] ${b.summary}\n      "${b.evidence.quote}" (${b.evidence.file}:${b.evidence.line})`,
         )
       : ["  (none)"]),
     "",
@@ -65,6 +66,18 @@ function renderSpec(repo: FleetRepo, spec: MigrationSpec): string {
       : ["  (none)"]),
     "─".repeat(72),
   ];
+  if (spec.workspace_hygiene) {
+    lines.splice(
+      lines.length - 1,
+      0,
+      "",
+      "workspace_hygiene (tracked files modified during research — verdict unchanged):",
+      ...spec.workspace_hygiene.files.map((f) => `  - ${f}`),
+      spec.workspace_hygiene.diff.trim()
+        ? `--- diff ---\n${spec.workspace_hygiene.diff}`
+        : "",
+    );
+  }
   return lines.join("\n");
 }
 

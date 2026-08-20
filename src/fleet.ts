@@ -1,18 +1,21 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import { ConcurrencySchema, type Concurrency } from "./concurrency.ts";
 import { FLEET_PATH } from "./paths.ts";
 
 const KindSchema = z.enum(["api", "batch", "web"]);
 const RoleSchema = z.enum(["producer", "consumer"]);
+const ResearchFromSchema = z.enum(["M1", "M4"]);
 
 export const FleetRepoSchema = z.object({
   slug: z.string().min(1),
   display_name: z.string().min(1),
   github_url: z.string().url(),
   default_branch: z.string().min(1),
-  baseline_tag: z.literal("baseline-v2"),
+  baseline_tag: z.string().min(1),
   kind: KindSchema,
   role: RoleSchema,
+  research_from: ResearchFromSchema.optional(),
   port: z.number().int().positive().optional(),
   db_port: z.number().int().positive().optional(),
 });
@@ -20,30 +23,61 @@ export type FleetRepo = z.infer<typeof FleetRepoSchema>;
 
 export const FleetSchema = z.object({
   org: z.string().min(1),
-  baseline_tag: z.literal("baseline-v2"),
+  baseline_tag: z.string().min(1),
   producer: z.string().min(1),
+  /** Injected into LEGOLAS (research) and GIMLI (write) prompts. */
+  business_context: z.array(z.string()).optional(),
+  /** Across-repo research pairs. Default full. Within-repo LEGOLAS ∥ BILBO is not this knob. */
+  research_concurrency: ConcurrencySchema.optional(),
+  /** Across approved-repo write agents. Default full. */
+  write_concurrency: ConcurrencySchema.optional(),
   repos: z.array(FleetRepoSchema).min(1),
 });
 export type Fleet = z.infer<typeof FleetSchema>;
 
-let cached: Fleet | undefined;
+export function fleetResearchConcurrency(fleet: Fleet): Concurrency {
+  return fleet.research_concurrency ?? "full";
+}
 
-export function loadFleet(): Fleet {
-  if (cached) return cached;
-  const raw = JSON.parse(readFileSync(FLEET_PATH, "utf8"));
-  cached = FleetSchema.parse(raw);
-  return cached;
+export function fleetWriteConcurrency(fleet: Fleet): Concurrency {
+  return fleet.write_concurrency ?? "full";
+}
+
+export function parseFleet(raw: unknown): Fleet {
+  return FleetSchema.parse(raw);
+}
+
+export function loadFleet(path: string = FLEET_PATH): Fleet {
+  return parseFleet(JSON.parse(readFileSync(path, "utf8")));
+}
+
+export function consumersOf(fleet: Fleet): FleetRepo[] {
+  return fleet.repos.filter((r) => r.role === "consumer");
 }
 
 export function consumers(): FleetRepo[] {
-  return loadFleet().repos.filter((r) => r.role === "consumer");
+  return consumersOf(loadFleet());
 }
 
-export function producer(): FleetRepo {
-  const fleet = loadFleet();
+const WAVE = { M1: 1, M4: 4 } as const;
+
+export function researchConsumersOf(fleet: Fleet, wave: "M1" | "M4"): FleetRepo[] {
+  return consumersOf(fleet).filter((r) => WAVE[r.research_from ?? "M1"] <= WAVE[wave]);
+}
+
+/** Live M1 researches all four consumers (Lighthouse pulled forward from M4). Stub fans out every consumer. */
+export function researchConsumers(wave: "M1" | "M4"): FleetRepo[] {
+  return researchConsumersOf(loadFleet(), wave);
+}
+
+export function producerOf(fleet: Fleet): FleetRepo {
   const repo = fleet.repos.find((r) => r.slug === fleet.producer);
   if (!repo) throw new Error(`producer slug ${fleet.producer} missing from fleet.repos`);
   return repo;
+}
+
+export function producer(): FleetRepo {
+  return producerOf(loadFleet());
 }
 
 export function repoBySlug(slug: string): FleetRepo {

@@ -2,6 +2,9 @@
   "org": "rgrojean",
   "baseline_tag": "baseline-v2",
   "producer": "identity_service",
+  "business_context": [],
+  "research_concurrency": "full",
+  "write_concurrency": "full",
   "repos": [
     {
       "slug": "identity_service",
@@ -21,6 +24,7 @@
       "baseline_tag": "baseline-v2",
       "kind": "api",
       "role": "consumer",
+      "research_from": "M1",
       "port": 3001,
       "db_port": 5433
     },
@@ -32,6 +36,7 @@
       "baseline_tag": "baseline-v2",
       "kind": "batch",
       "role": "consumer",
+      "research_from": "M1",
       "db_port": 5434
     },
     {
@@ -42,6 +47,7 @@
       "baseline_tag": "baseline-v2",
       "kind": "web",
       "role": "consumer",
+      "research_from": "M1",
       "port": 3107,
       "db_port": 15432
     },
@@ -52,7 +58,8 @@
       "default_branch": "main",
       "baseline_tag": "baseline-v2",
       "kind": "batch",
-      "role": "consumer"
+      "role": "consumer",
+      "research_from": "M1"
     }
   ]
 }

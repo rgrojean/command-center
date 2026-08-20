@@ -15,6 +15,12 @@ export type RunAgentOptions = {
   model: string;
   mode: AgentMode;
   kind: AgentKind;
+  githubUrl?: string;
+  startingRef?: string;
+  autoCreatePR?: boolean;
+  onEvent?: (event: AgentEvent) => void;
+  signal?: AbortSignal;
+  registerCancel?: (cancel: () => void) => () => void;
 };
 
 export type AgentEvent = {

@@ -1,44 +1,70 @@
 import { rmSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { WRITE_BRANCH } from "./clone.ts";
 import { consumers } from "./fleet.ts";
 import { STATE_DIR, WORKSPACES_DIR } from "./paths.ts";
 
-/**
- * Close open migration PRs, delete migration/pis-v3 branches, wipe state/
- * and workspaces/. Safe to run when nothing exists yet (M0).
- */
-function tryGh(args: string[], cwd?: string): string {
+const BRANCH = WRITE_BRANCH;
+
+type ExecError = Error & { status?: number; stderr?: string; stdout?: string };
+
+function gh(args: string[]): string {
   try {
     return execFileSync("gh", args, {
-      cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch {
-    return "";
+    }).trim();
+  } catch (err) {
+    const e = err as ExecError;
+    const detail = (e.stderr || e.stdout || e.message || String(err)).trim();
+    throw new Error(`gh ${args.join(" ")} failed (exit ${e.status ?? "?"}): ${detail}`);
   }
 }
 
+function isMissingRef(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return /Not Found|Reference does not exist|404/i.test(text);
+}
+
+/**
+ * Close open migration PRs, delete migration/spec-v3 branches, wipe state/
+ * and workspaces/. Safe to run when nothing exists yet (no PRs, no branch)
+ * — gh/auth failures are not swallowed.
+ */
 for (const repo of consumers()) {
   const slug = repo.github_url.replace(/^https:\/\/github.com\//, "");
-  const prs = tryGh([
+  const prs = gh([
     "pr",
     "list",
     "--repo",
     slug,
     "--head",
-    "migration/pis-v3",
+    BRANCH,
     "--json",
     "number",
     "--jq",
     ".[].number",
   ]);
-  for (const num of prs.split(/\s+/).filter(Boolean)) {
-    console.log(`closing ${slug}#${num}`);
-    tryGh(["pr", "close", num, "--repo", slug, "--comment", "command-center reset.sh"]);
+  const numbers = prs.split(/\s+/).filter(Boolean);
+  if (numbers.length === 0) {
+    console.log(`${slug}: no open ${BRANCH} PRs`);
+  } else {
+    for (const num of numbers) {
+      console.log(`closing ${slug}#${num}`);
+      gh(["pr", "close", num, "--repo", slug, "--comment", "command-center reset.sh"]);
+    }
   }
-  tryGh(["api", "-X", "DELETE", `repos/${slug}/git/refs/heads/migration/pis-v3`]);
+  try {
+    gh(["api", "-X", "DELETE", `repos/${slug}/git/refs/heads/${BRANCH}`]);
+    console.log(`${slug}: deleted ${BRANCH}`);
+  } catch (err) {
+    if (isMissingRef(err)) {
+      console.log(`${slug}: ${BRANCH} already gone`);
+    } else {
+      throw err;
+    }
+  }
 }
 
 if (existsSync(STATE_DIR)) {

@@ -1,0 +1,191 @@
+# PIS v3 — exactly three breaking changes vs v2 (D11 / session brief):
+#   1. removal:      ssn gone
+#   2. restructure:  name string → given[] + family
+#   3. re-id:        patientId string → identifier[] {system, value}
+# Everything else (dob, gender, phone, email, address, paths, paging) survives.
+# GET /v2/patients/{patientId} still looks up by the Riverbend identifier value;
+# the path parameter is not a resource field.
+openapi: 3.0.3
+info:
+  title: Riverbend Health Patient Identity Service
+  version: "3.0.0"
+  description: Patient Identity Service (PIS) v3 — incremental FHIR R4 alignment of identity surfaces only.
+servers:
+  - url: http://localhost:4110
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+  /v2/patients/{patientId}:
+    get:
+      summary: Get patient by ID
+      operationId: getPatientById
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: Lookup key — the value of the Riverbend-namespaced identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Patient found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+  /v2/patients:
+    get:
+      summary: Search or list patients
+      operationId: listPatients
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Name substring search. When present, search mode is used.
+          schema:
+            type: string
+        - name: facility
+          in: query
+          required: false
+          description: Facility code for paged roster (RVB or SAM).
+          schema:
+            type: string
+            enum: [RVB, SAM]
+        - name: page
+          in: query
+          required: false
+          description: Page number for facility roster (page size 10). Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Search or roster results
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SearchResponse"
+                  - $ref: "#/components/schemas/RosterResponse"
+components:
+  schemas:
+    Address:
+      type: object
+      required: [line1, city, state, zip]
+      properties:
+        line1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+    Identifier:
+      type: object
+      required: [system, value]
+      properties:
+        system:
+          type: string
+          description: Namespace URI (e.g. urn:riverbend:mrn, urn:stansgar:mrn).
+        value:
+          type: string
+    Patient:
+      type: object
+      required:
+        - identifier
+        - given
+        - family
+        - dob
+        - gender
+        - phone
+        - email
+        - address
+      properties:
+        identifier:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Identifier"
+          x-replaces: patientId
+        given:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Given name parts, ordered (FHIR HumanName.given).
+          x-replaces: name
+        family:
+          type: string
+          description: Family name (FHIR HumanName.family).
+          x-replaces: name
+        dob:
+          type: string
+          description: Date of birth in MM/DD/YYYY format.
+        gender:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          nullable: true
+        address:
+          $ref: "#/components/schemas/Address"
+    SearchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Patient"
+        meta:
+          type: object
+          required: [total]
+          properties:
+            total:
+              type: integer
+    RosterResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Patient"
+        meta:
+          type: object
+          required: [total, page, nextPage]
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            nextPage:
+              type: integer
+              nullable: true

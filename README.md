@@ -1,57 +1,120 @@
-# Breaking Change Command Center
+# Spec Migrator 5000
 
-Agentic migration pipeline on the [Cursor SDK](https://cursor.com/docs/sdk/typescript). When the Patient Identity Service publishes a breaking v3 spec, this repo researches every consumer, holds a human gate on the specs, and opens migration PRs.
+Point two OpenAPI specs and a `fleet.json` at a set of consuming repos. The orchestrator diffs the spec pair, fans out research agents (LEGOLAS) plus a human-impact pass (BILBO), holds for a human gate, then write agents (GIMLI) implement approved specs.
 
-M0 is the stub rehearsal: the full pipeline runs with **zero SDK calls** and **no API key**.
-
-```bash
-npm install
-npm run pipeline -- --stub
-```
-
-Expect `<10s`, a printed gate for each consumer, fake-PR JSON under `state/<runId>/`, and a terminal-state board.
+The bundled sample is a healthcare identity API. The product is not: prompts, the diff, and the dashboard are spec-agnostic. Swap the YAMLs and fleet to run a different producer.
 
 ```
 spec diff → dual research fan-out → merge → gate → write / escalate → report
 ```
 
-Terminal states: `migrated_verified` | `migrated_with_flags` | `blocked` | `failed` | `unaffected`. Artifact is an **open PR**, never a merge.
+Terminal states: `migrated_verified` | `migrated_with_flags` | `blocked` | `failed` | `unaffected`. Artifact is an **open PR** (or a demo PR JSON), never a merge.
 
-## Fleet
+## Hosted demo
 
-Clones come from GitHub at `baseline-v2` into `workspaces/<slug>/` — never from the sibling working trees in `cursor_sdk_project/`. Ports are the running stack, not the session-brief's aspirational numbers.
+Password: `rcgcursordemo`
 
-| Slug | Name | Kind | Port | DB |
-|---|---|---|---|---|
-| `identity_service` | PIS (producer) | api | 4110 | — |
-| `cadence_scheduling_service` | Cadence | api | 3001 | 5433 |
-| `claims_service` | ClaimBridge | batch | — | 5434 |
-| `patient_portal` | MyRiverbend | web | 3107 | 15432 |
-| `reporting_service` | Lighthouse | batch | — | sqlite |
+LIVE uses the operator’s `CURSOR_API_KEY` for everyone on the demo. Stub rehearsal needs no key.
 
-Source of truth: [`fleet.json`](./fleet.json).
+## Run locally
+
+```bash
+npm install
+cp .env.example .env   # set CURSOR_API_KEY for LIVE
+npm start              # dashboard on :4150
+```
+
+Stub pipeline (no SDK, no key):
+
+```bash
+npm run pipeline -- --stub
+```
+
+Live research (needs `CURSOR_API_KEY` or `Cursor.auth.login`):
+
+```bash
+npm run pipeline -- --live --yes
+```
+
+## Inputs
+
+| File | What |
+|---|---|
+| Current spec (v2) | OpenAPI 3 YAML or JSON |
+| New spec (v3) | Breaking successor. `x-replaces` on a new property names its predecessor. |
+| `fleet.json` | Producer + consumers, GitHub URLs, baseline tags |
+
+Defaults ship in `specs/` and `fleet.json`. The dashboard can upload replacements, or download the sample fleet as a template.
+
+Optional fleet field, also editable in the pre-run popup:
+
+```json
+{
+  "business_context": [
+    "Domain notes for LEGOLAS and GIMLI — compliance rules, identifier conventions, what must not be shimmed."
+  ]
+}
+```
+
+That array is injected into the research (LEGOLAS) and write (GIMLI) prompts only. BILBO is unchanged.
+
+## Fleet shape
+
+```json
+{
+  "org": "your-github-org",
+  "baseline_tag": "baseline-v2",
+  "producer": "producer_slug",
+  "business_context": [],
+  "research_concurrency": "full",
+  "write_concurrency": "full",
+  "repos": [
+    {
+      "slug": "producer_slug",
+      "display_name": "Producer API",
+      "github_url": "https://github.com/org/producer",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "api",
+      "role": "producer"
+    },
+    {
+      "slug": "consumer_slug",
+      "display_name": "Consumer",
+      "github_url": "https://github.com/org/consumer",
+      "default_branch": "main",
+      "baseline_tag": "baseline-v2",
+      "kind": "api",
+      "role": "consumer"
+    }
+  ]
+}
+```
+
+Live agents clone each consumer at `baseline_tag`. On Vercel they run as Cursor **cloud** agents (no local executor). Locally they run against clones in `workspaces/`.
+
+Set `OPEN_REAL_PRS=true` only if write agents should push GitHub PRs. The hosted demo leaves this off.
 
 ## Layout
 
-- `src/spec-schema.ts` / `human-impact-schema.ts` / `write-summary-schema.ts` — the three Zod contracts (review at M0 before M1)
+- `src/spec-schema.ts` / `human-impact-schema.ts` / `write-summary-schema.ts` — Zod contracts
 - `src/run-agent.ts` — the one SDK seam (`mode: "live" | "stub"`)
-- `src/agents.ts` — two call sites: read-only (research + human-impact) and write
-- `prompts/` — agent templates; live agents see spec diff + task, never stub narratives
+- `src/agents.ts` — read-only (LEGOLAS + BILBO) and write (GIMLI)
+- `prompts/` — templates; `{{BUSINESS_CONTEXT}}` and `{{DIFF_SUMMARY}}` are substituted
 - `fixtures/stubs/` — canned outputs for `--stub`
-- `docs/adr/DECISIONS.md` — D16–D26
-- `state/<runId>/manifest.json` + `<slug>/events.ndjson`
+- `docs/adr/DECISIONS.md` — historical decision log (the original healthcare sample)
 
 ```bash
 npm run reset          # close migration PRs, delete branches, wipe state/ + workspaces/
 npm run pipeline -- --stub --gate   # interactive y/n even in stub
 ```
 
-## Milestones
+## Env
 
-| | What |
+| Variable | Purpose |
 |---|---|
-| **M0** | This repo, stub harness, skeleton pipeline. You are here. |
-| M1 | Real v3 OpenAPI + live dual-agent research on Cadence, ClaimBridge, portal |
-| M2 | Live write fan-out + real `gh` PRs |
-| M3 | Express dashboard `:4150` |
-| M4 | PIS v3 mode, D19 probe, Lighthouse live |
+| `CURSOR_API_KEY` | LIVE agents (everyone on the hosted demo shares the operator key) |
+| `APP_PASSWORD` | Dashboard password (default `rcgcursordemo`) |
+| `OPEN_REAL_PRS` | `true` to `git push` / `gh pr create` from write |
+| `CURSOR_RUNTIME` | `cloud` or `local` (Vercel defaults to cloud) |
+| `PORT` | Dashboard port (default `4150`) |

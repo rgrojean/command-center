@@ -1,18 +1,49 @@
-import { runPipeline } from "./pipeline.ts";
+import { parseConcurrency, type Concurrency } from "./concurrency.ts";
+import { runPipeline, type PipelineOptions } from "./pipeline.ts";
 import type { AgentMode } from "./run-agent.ts";
 
-function parseArgs(argv: string[]): { mode: AgentMode; autoApprove: boolean } {
+function argValue(argv: string[], name: string): string | undefined {
+  const eq = argv.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1);
+  const i = argv.indexOf(name);
+  if (i >= 0) return argv[i + 1];
+  return undefined;
+}
+
+function parseArgs(argv: string[]): PipelineOptions {
   const live = argv.includes("--live");
   const stubFlag = argv.includes("--stub");
   if (live && stubFlag) {
     throw new Error("pass either --stub or --live, not both");
   }
   const mode: AgentMode = live ? "live" : "stub";
-  // Stub rehearsals must finish unattended (CI, reset-safe). --gate forces
-  // the interactive y/n even in stub; --yes auto-approves in either mode.
   const autoApprove =
     argv.includes("--yes") || (mode === "stub" && !argv.includes("--gate"));
-  return { mode, autoApprove };
+  const raw = argValue(argv, "--until");
+  const until: PipelineOptions["until"] =
+    raw === "write" || raw === "gate" ? raw : mode === "live" ? "gate" : "write";
+  const reposRaw = argValue(argv, "--repos");
+  const fromRun = argValue(argv, "--from-run");
+  const researchRaw = argValue(argv, "--research-concurrency");
+  const writeRaw = argValue(argv, "--write-concurrency");
+  const researchConcurrency: Concurrency | undefined = researchRaw
+    ? parseConcurrency(researchRaw)
+    : undefined;
+  const writeConcurrency: Concurrency | undefined = writeRaw
+    ? parseConcurrency(writeRaw)
+    : undefined;
+  return {
+    mode,
+    autoApprove,
+    until,
+    repos: reposRaw ? reposRaw.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+    fromRun,
+    v2Path: argValue(argv, "--v2"),
+    v3Path: argValue(argv, "--v3"),
+    fleetPath: argValue(argv, "--fleet"),
+    researchConcurrency,
+    writeConcurrency,
+  };
 }
 
 const opts = parseArgs(process.argv.slice(2));

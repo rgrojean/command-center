@@ -1,16 +1,30 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PipelineKilled } from "./hold.ts";
 import { STUBS_DIR } from "./paths.ts";
 import { HumanImpactSchema } from "./human-impact-schema.ts";
-import { ResearchSpecSchema } from "./spec-schema.ts";
 import { WriteSummarySchema } from "./write-summary-schema.ts";
 import type { RunAgentOptions, RunAgentResult } from "./run-agent-types.ts";
 
-/** Short enough that 4 repos × 2–3 calls stay well under the 10s M0 budget. */
-const STUB_DELAY_MS = 40;
+/** Long enough that a 1s board poll sees all eight research cards live (D33). */
+const STUB_DELAY_MS = 450;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new PipelineKilled());
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new PipelineKilled());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function loadStub(repo: string, kind: RunAgentOptions["kind"]): unknown {
@@ -18,7 +32,7 @@ function loadStub(repo: string, kind: RunAgentOptions["kind"]): unknown {
   const raw = JSON.parse(readFileSync(path, "utf8"));
   switch (kind) {
     case "research":
-      return ResearchSpecSchema.parse(raw);
+      return raw;
     case "human-impact":
       return HumanImpactSchema.parse(raw);
     case "write":
@@ -32,7 +46,7 @@ function loadStub(repo: string, kind: RunAgentOptions["kind"]): unknown {
  * Stub fixtures are rehearsal — they are never concatenated into live prompts.
  */
 export async function runStubAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
-  await sleep(STUB_DELAY_MS);
+  await sleep(STUB_DELAY_MS, opts.signal);
   const result = loadStub(opts.repo, opts.kind);
   return {
     events: [

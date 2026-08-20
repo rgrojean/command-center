@@ -6,13 +6,21 @@ export type FakePullRequest = {
   stub: true;
   repo: string;
   github_url: string;
-  branch: "migration/pis-v3";
+  branch: string;
   title: string;
   body: string;
   url: string;
 };
 
-function prBody(spec: MigrationSpec, summary: WriteSummary): string {
+export function prTitle(repo: FleetRepo): string {
+  return `migrate ${repo.display_name} onto producer spec v3`;
+}
+
+export function prBody(
+  spec: MigrationSpec,
+  summary: WriteSummary,
+  footer = "_Opened by Command Center. Do not merge; CODEOWNERS review required._",
+): string {
   const what = spec.required_changes.map((c) => `- ${c.description}`).join("\n");
   const evidence = spec.evidence
     .map((e) => `- ${e.file}${e.line ? `:${e.line}` : ""} — "${e.quote}"`)
@@ -47,7 +55,7 @@ function prBody(spec: MigrationSpec, summary: WriteSummary): string {
     human || "(no findings)",
     notes ? `\n### Write-agent notes\n${notes}` : "",
     "",
-    "_Stub PR — M2 opens a real GitHub PR via `gh`. Do not merge; CODEOWNERS review required._",
+    footer,
   ].join("\n");
 }
 
@@ -61,9 +69,13 @@ export function buildFakePr(
     stub: true,
     repo: repo.slug,
     github_url: repo.github_url,
-    branch: "migration/pis-v3",
-    title: `migrate ${repo.display_name} onto PIS v3`,
-    body: prBody(spec, summary),
+    branch: "migration/spec-v3",
+    title: prTitle(repo),
+    body: prBody(
+      spec,
+      summary,
+      "_Stub PR — M2 opens a real GitHub PR via `gh`. Do not merge; CODEOWNERS review required._",
+    ),
     url: `${repo.github_url}/pull/stub-${spec.repo}`,
   };
 }
@@ -75,6 +87,14 @@ export type EscalationArtifact = {
   blockers: MigrationSpec["blockers"];
   human_impact: MigrationSpec["downstream_impacts"]["overall_rating"];
   note: string;
+  /** Who owns the decision (blocked specs). */
+  routing?: string;
+  cited_evidence?: Array<{ file: string; line?: number; quote: string }>;
+  human_findings?: Array<{
+    rating: string;
+    kind: string;
+    summary: string;
+  }>;
 };
 
 export function buildEscalation(
@@ -82,7 +102,27 @@ export function buildEscalation(
   spec: MigrationSpec,
   reason: EscalationArtifact["reason"],
   note: string,
+  extra?: Pick<EscalationArtifact, "routing">,
 ): EscalationArtifact {
+  const cited = [
+    ...spec.blockers.map((b) => ({
+      file: b.evidence.file,
+      line: b.evidence.line,
+      quote: b.evidence.quote,
+    })),
+    ...spec.evidence.map((e) => ({
+      file: e.file,
+      line: e.line,
+      quote: e.quote,
+    })),
+  ];
+  const seen = new Set<string>();
+  const cited_evidence = cited.filter((e) => {
+    const key = `${e.file}:${e.line}:${e.quote}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return {
     repo: repo.slug,
     display_name: repo.display_name,
@@ -90,5 +130,12 @@ export function buildEscalation(
     blockers: spec.blockers,
     human_impact: spec.downstream_impacts.overall_rating,
     note,
+    routing: extra?.routing,
+    cited_evidence,
+    human_findings: spec.downstream_impacts.findings.map((f) => ({
+      rating: f.rating,
+      kind: f.kind,
+      summary: f.summary,
+    })),
   };
 }

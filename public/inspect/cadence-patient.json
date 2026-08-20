@@ -1,0 +1,15 @@
+{
+  "patientId": "100104",
+  "name": "Williams, Sarah",
+  "dob": "05/14/1990",
+  "gender": "F",
+  "ssn": "567-89-0123",
+  "phone": "615-555-0121",
+  "email": "swilliams.rvb@example.com",
+  "address": {
+    "line1": "900 Demonbreun St",
+    "city": "Nashville",
+    "state": "TN",
+    "zip": "37203"
+  }
+}

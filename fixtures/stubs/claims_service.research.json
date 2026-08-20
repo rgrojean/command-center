@@ -78,6 +78,7 @@
   },
   "blockers": [
     {
+      "class": "organizational",
       "summary": "Workers-comp payers require SSN as subscriber id per companion guide; configured in payers.yaml.",
       "evidence": {
         "file": "config/payers.yaml",
@@ -86,6 +87,7 @@
       }
     },
     {
+      "class": "organizational",
       "summary": "README states SSN is written into the 837 subscriber identification segment because that is what the payer's companion guide demands.",
       "evidence": {
         "file": "README.md",
@@ -108,8 +110,6 @@
       }
     ]
   },
-  "execution_grade": "judgment_heavy",
-  "grade_reasoning": "Statutory/payer companion-guide dependency on ssn cannot be migrated from this repo alone. Name split and identifier remapping would be contextual if the blocker were lifted; they are not sufficient.",
   "confidence": {
     "score": 0.92,
     "rationale": "payers.yaml and README quote the companion-guide requirement directly; this is a complete blocker, not a missing-code problem."

@@ -13,6 +13,13 @@ export const EvidenceSchema = z.object({
 });
 export type Evidence = z.infer<typeof EvidenceSchema>;
 
-/** The only three PIS v3 breaks. Everything else surviving is out of scope. */
-export const BreakingFieldSchema = z.enum(["ssn", "name", "patientId"]);
-export type BreakingField = z.infer<typeof BreakingFieldSchema>;
+/** D30 — enum members come from the diff, not a hardcoded list. */
+export function breakingFieldEnum(fields: string[]) {
+  const unique = [...new Set(fields)];
+  if (unique.length < 1) {
+    throw new Error("breakingFieldEnum requires at least one field from the diff");
+  }
+  return z.enum(unique as [string, ...string[]]);
+}
+
+export type BreakingField = string;

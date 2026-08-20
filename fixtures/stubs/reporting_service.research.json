@@ -47,8 +47,6 @@
       }
     ]
   },
-  "execution_grade": "mechanical",
-  "grade_reasoning": "ssn and name are dropped at pick() today. Reports do not emit patientId. A collector-edge map from identifier.value onto the existing dedup token would be mechanical and does not change published numbers — classified unaffected, not a write candidate.",
   "confidence": {
     "score": 0.8,
     "rationale": "Projection is an explicit four-field pick. Residual uncertainty: whether M4 probe should still remap identifier.value inside pick() without calling that a migration."

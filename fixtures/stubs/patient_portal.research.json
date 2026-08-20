@@ -56,9 +56,9 @@
   ],
   "required_changes": [
     {
-      "id": "portal-drop-ssn-not-null",
-      "description": "Stop writing ssn from PIS. Drop or relax ssn TEXT NOT NULL (new migration). INC-4471 comment is about sync shape, not about keeping SSN after the producer removes it.",
-      "files": ["migrations/002_ssn_optional.sql", "lib/sync.js"],
+      "id": "portal-migration-ssn-nullable",
+      "description": "Step 1/3 — schema migration: drop or relax ssn TEXT NOT NULL (new migration). Must ship with the insert-path and view changes below.",
+      "files": ["migrations/002_ssn_optional.sql"],
       "evidence": {
         "file": "migrations/001_init.sql",
         "line": 7,
@@ -66,23 +66,23 @@
       }
     },
     {
-      "id": "portal-name-columns",
-      "description": "Cache given/family (or a composed display name) instead of the v2 flat name string. Keep the wholesale-upsert idiom; do not introduce a validation layer.",
-      "files": ["lib/sync.js", "migrations/002_ssn_optional.sql"],
-      "evidence": {
-        "file": "lib/sync.js",
-        "line": 1,
-        "quote": "keep cache shape = API shape, simplifies everything"
-      }
-    },
-    {
-      "id": "portal-identifier",
-      "description": "Read identifier.value for the patient_id primary key and for GET-by-id.",
+      "id": "portal-insert-path",
+      "description": "Step 2/3 — insert path: stop writing p.ssn; cache given/family instead of the v2 name string; read identifier.value for patient_id and GET-by-id. Keep the wholesale-upsert idiom. INC-4471 is about sync shape, not about keeping SSN after the producer removes it.",
       "files": ["lib/sync.js", "app.js"],
       "evidence": {
         "file": "lib/sync.js",
-        "line": 28,
-        "quote": "http.get(`${process.env.PIS_URL}/v2/patients/${patientId}`)"
+        "line": 8,
+        "quote": "INSERT INTO portal_patients (patient_id, name, dob, gender, ssn, phone, email, addr_line1, city, state, zip)"
+      }
+    },
+    {
+      "id": "portal-views",
+      "description": "Step 3/3 — views: update admin/profile dynamic labels so given/family render and SSN is no longer a labeled row. Ships with the migration and insert-path changes.",
+      "files": ["views/admin/patient.ejs", "views/profile.ejs"],
+      "evidence": {
+        "file": "views/admin/patient.ejs",
+        "line": 18,
+        "quote": "var labels = { dob: 'Date of Birth', ssn: 'SSN', addr_line1: 'Address Line 1', patient_id: 'Patient ID', updated_at: 'Updated At' };"
       }
     }
   ],
@@ -107,7 +107,17 @@
       }
     ]
   },
-  "blockers": [],
+  "blockers": [
+    {
+      "class": "technical_coordinated",
+      "summary": "ssn TEXT NOT NULL, the wholesale INSERT of p.ssn, and dynamic views that render the cache row must ship together; a migration without the write-path change (or the reverse) fails at runtime.",
+      "evidence": {
+        "file": "migrations/001_init.sql",
+        "line": 7,
+        "quote": "ssn TEXT NOT NULL,"
+      }
+    }
+  ],
   "production_verification": {
     "gaps": [
       {

@@ -1,0 +1,339 @@
+{
+  "runId": "demographics_20260812_1786505772057",
+  "pulledAt": "2026-08-12T03:36:12.094Z",
+  "asOf": "2026-08-12",
+  "facilities": [
+    {
+      "facility": "RVB",
+      "metaTotal": 28,
+      "records": [
+        {
+          "patientId": "483921",
+          "gender": "F",
+          "dob": "03/15/1961",
+          "address": {
+            "zip": "37211"
+          }
+        },
+        {
+          "patientId": "100101",
+          "gender": "F",
+          "dob": "07/22/1978",
+          "address": {
+            "zip": "37212"
+          }
+        },
+        {
+          "patientId": "100102",
+          "gender": "M",
+          "dob": "11/03/1955",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100103",
+          "gender": "M",
+          "dob": "01/09/1982",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100104",
+          "gender": "F",
+          "dob": "05/14/1990",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "550001",
+          "gender": "F",
+          "dob": "12/01/1973",
+          "address": {
+            "zip": "37201"
+          }
+        },
+        {
+          "patientId": "550002",
+          "gender": "F",
+          "dob": "08/30/1949",
+          "address": {
+            "zip": "37215"
+          }
+        },
+        {
+          "patientId": "100105",
+          "gender": "M",
+          "dob": "06/06/1952",
+          "address": {
+            "zip": "37206"
+          }
+        },
+        {
+          "patientId": "100106",
+          "gender": "M",
+          "dob": "10/19/1985",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100107",
+          "gender": "F",
+          "dob": "03/03/1964",
+          "address": {
+            "zip": "37211"
+          }
+        },
+        {
+          "patientId": "100108",
+          "gender": "F",
+          "dob": "07/07/1991",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100109",
+          "gender": "M",
+          "dob": "12/25/1979",
+          "address": {
+            "zip": "37214"
+          }
+        },
+        {
+          "patientId": "100110",
+          "gender": "F",
+          "dob": "04/12/1988",
+          "address": {
+            "zip": "37217"
+          }
+        },
+        {
+          "patientId": "100111",
+          "gender": "M",
+          "dob": "09/01/1947",
+          "address": {
+            "zip": "37205"
+          }
+        },
+        {
+          "patientId": "100112",
+          "gender": "F",
+          "dob": "01/21/1971",
+          "address": {
+            "zip": "37209"
+          }
+        },
+        {
+          "patientId": "100113",
+          "gender": "M",
+          "dob": "05/05/1983",
+          "address": {
+            "zip": "37208"
+          }
+        },
+        {
+          "patientId": "100114",
+          "gender": "F",
+          "dob": "08/18/1960",
+          "address": {
+            "zip": "37204"
+          }
+        },
+        {
+          "patientId": "100115",
+          "gender": "M",
+          "dob": "02/28/1993",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100116",
+          "gender": "F",
+          "dob": "11/11/1976",
+          "address": {
+            "zip": "37211"
+          }
+        },
+        {
+          "patientId": "100117",
+          "gender": "M",
+          "dob": "06/15/1986",
+          "address": {
+            "zip": "37208"
+          }
+        },
+        {
+          "patientId": "100118",
+          "gender": "F",
+          "dob": "03/27/1958",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100119",
+          "gender": "M",
+          "dob": "10/02/1997",
+          "address": {
+            "zip": "37212"
+          }
+        },
+        {
+          "patientId": "100120",
+          "gender": "F",
+          "dob": "07/14/1969",
+          "address": {
+            "zip": "37203"
+          }
+        },
+        {
+          "patientId": "100121",
+          "gender": "M",
+          "dob": "12/08/1980",
+          "address": {
+            "zip": "37214"
+          }
+        },
+        {
+          "patientId": "100122",
+          "gender": "F",
+          "dob": "04/04/1992",
+          "address": {
+            "zip": "37206"
+          }
+        },
+        {
+          "patientId": "100123",
+          "gender": "M",
+          "dob": "09/19/1954",
+          "address": {
+            "zip": "37207"
+          }
+        },
+        {
+          "patientId": "100124",
+          "gender": "F",
+          "dob": "01/30/1975",
+          "address": {
+            "zip": "37211"
+          }
+        },
+        {
+          "patientId": "100125",
+          "gender": "F",
+          "dob": "04/21/1984",
+          "address": {
+            "zip": "37211"
+          }
+        }
+      ]
+    },
+    {
+      "facility": "SAM",
+      "metaTotal": 12,
+      "records": [
+        {
+          "patientId": "200104",
+          "gender": "F",
+          "dob": "09/28/1987",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "550001",
+          "gender": "M",
+          "dob": "04/17/1968",
+          "address": {
+            "zip": "37044"
+          }
+        },
+        {
+          "patientId": "550002",
+          "gender": "M",
+          "dob": "02/11/1995",
+          "address": {
+            "zip": "37042"
+          }
+        },
+        {
+          "patientId": "200105",
+          "gender": "M",
+          "dob": "05/22/1966",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "200106",
+          "gender": "F",
+          "dob": "08/08/1994",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "200107",
+          "gender": "M",
+          "dob": "11/16/1959",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "200108",
+          "gender": "F",
+          "dob": "02/02/1981",
+          "address": {
+            "zip": "37042"
+          }
+        },
+        {
+          "patientId": "200109",
+          "gender": "M",
+          "dob": "06/29/1970",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "200110",
+          "gender": "F",
+          "dob": "10/10/1948",
+          "address": {
+            "zip": "37042"
+          }
+        },
+        {
+          "patientId": "200111",
+          "gender": "M",
+          "dob": "03/13/1989",
+          "address": {
+            "zip": "37042"
+          }
+        },
+        {
+          "patientId": "200112",
+          "gender": "F",
+          "dob": "07/25/1963",
+          "address": {
+            "zip": "37040"
+          }
+        },
+        {
+          "patientId": "200113",
+          "gender": "M",
+          "dob": "12/12/1977",
+          "address": {
+            "zip": "37042"
+          }
+        }
+      ]
+    }
+  ]
+}
