@@ -142,7 +142,11 @@ export function runDirFor(runId: string): string {
 }
 
 export function readManifest(runDir: string): RunManifest {
-  return JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf8")) as RunManifest;
+  const path = join(runDir, "manifest.json");
+  if (!existsSync(path)) {
+    throw new Error(`run not found`);
+  }
+  return JSON.parse(readFileSync(path, "utf8")) as RunManifest;
 }
 
 export function listRunIds(): string[] {

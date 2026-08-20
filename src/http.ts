@@ -1,3 +1,4 @@
+import { waitUntil } from "@vercel/functions";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Express, Request, Response } from "express";
@@ -7,6 +8,14 @@ import { businessContextProse, loadFleet, parseFleet, producerOf } from "./fleet
 import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.js";
 import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.js";
 import { runPipeline } from "./pipeline.js";
+import {
+  loadCachedBoard,
+  publishAbort,
+  publishBoard,
+  publishDecision,
+  publishRelease,
+  takeRemoteCtl,
+} from "./run-store.js";
 import { ExecutionGradeSchema } from "./spec-schema.js";
 import {
   createRun,
@@ -43,6 +52,18 @@ function param(req: Request, name: string): string {
 
 function controlling(runId: string): boolean {
   return active?.runId === runId;
+}
+
+async function boardFor(runId: string) {
+  try {
+    return assembleBoard(runId, controlling(runId));
+  } catch (err) {
+    const cached = await loadCachedBoard(runId);
+    if (cached) {
+      return { ...cached, controlling: controlling(runId) };
+    }
+    throw err;
+  }
 }
 
 type InputBody = {
@@ -180,16 +201,20 @@ export function mountHttp(app: Express): void {
     });
   });
 
-  app.get("/api/runs/latest", (_req, res) => {
+  app.get("/api/runs/latest", async (_req, res) => {
     const id = latestRunId();
     if (!id) return jsonError(res, 404, "no runs in state/");
-    res.json(assembleBoard(id, controlling(id)));
+    try {
+      res.json(await boardFor(id));
+    } catch (err) {
+      jsonError(res, 404, err instanceof Error ? err.message : String(err));
+    }
   });
 
-  app.get("/api/runs/:id", (req, res) => {
+  app.get("/api/runs/:id", async (req, res) => {
     try {
       const id = param(req, "id");
-      res.json(assembleBoard(id, controlling(id)));
+      res.json(await boardFor(id));
     } catch (err) {
       jsonError(res, 404, err instanceof Error ? err.message : String(err));
     }
@@ -251,7 +276,7 @@ export function mountHttp(app: Express): void {
       });
 
     active = { runId: existing.runId, hold, done };
-    void keepAlive(done);
+    keepRunAlive(existing.runId, hold, done);
     res.status(201).json({ runId: existing.runId, mode, phase: "research" });
   });
 
@@ -273,7 +298,7 @@ export function mountHttp(app: Express): void {
     res.json({ stage, prompt: readFileSync(path, "utf8") });
   });
 
-  app.post("/api/runs/:id/specs/:repo/decision", (req: Request, res: Response) => {
+  app.post("/api/runs/:id/specs/:repo/decision", async (req: Request, res: Response) => {
     let runId: string;
     let slug: string;
     try {
@@ -281,9 +306,6 @@ export function mountHttp(app: Express): void {
       slug = param(req, "repo");
     } catch (err) {
       return jsonError(res, 400, err instanceof Error ? err.message : String(err));
-    }
-    if (!active || active.runId !== runId) {
-      return jsonError(res, 409, "run is not holding for HTTP decisions");
     }
     const body = (req.body ?? {}) as {
       decision?: string;
@@ -302,7 +324,7 @@ export function mountHttp(app: Express): void {
     }
 
     try {
-      const snapshot = assembleBoard(runId, true);
+      const snapshot = await boardFor(runId);
       const lane = snapshot.lanes.find((l) => l.slug === slug);
       if (!lane) return jsonError(res, 404, `unknown consumer ${slug}`);
       if (!lane.needs_decision) {
@@ -325,33 +347,38 @@ export function mountHttp(app: Express): void {
           : undefined,
       at: nowIso(),
     };
-    writeJson(runDirFor(runId), slug, "decision.json", record);
-    const manifest = readManifest(runDirFor(runId));
-    const entry = manifest.repos[slug];
-    if (entry) {
-      entry.gate = record.decision;
-      if (record.note) entry.gate_note = record.note;
-      if (record.grade_override) entry.grade_override = record.grade_override;
-      if (record.model_override) entry.model_override = record.model_override;
-      writeManifest(runDirFor(runId), manifest);
+    try {
+      writeJson(runDirFor(runId), slug, "decision.json", record);
+      const manifest = readManifest(runDirFor(runId));
+      const entry = manifest.repos[slug];
+      if (entry) {
+        entry.gate = record.decision;
+        if (record.note) entry.gate_note = record.note;
+        if (record.grade_override) entry.grade_override = record.grade_override;
+        if (record.model_override) entry.model_override = record.model_override;
+        writeManifest(runDirFor(runId), manifest);
+      }
+    } catch {
+      /* follower isolate has no /tmp run dir */
     }
-    active.hold.record(slug, record);
+    if (active?.runId === runId) {
+      active.hold.record(slug, record);
+    } else {
+      await publishDecision(runId, slug, record);
+    }
     res.json({ ok: true, runId, repo: slug, decision: record });
   });
 
-  app.post("/api/runs/:id/release", (req: Request, res: Response) => {
+  app.post("/api/runs/:id/release", async (req: Request, res: Response) => {
     let runId: string;
     try {
       runId = param(req, "id");
     } catch (err) {
       return jsonError(res, 400, err instanceof Error ? err.message : String(err));
     }
-    if (!active || active.runId !== runId) {
-      return jsonError(res, 409, "run is not holding for release");
-    }
     let snapshot;
     try {
-      snapshot = assembleBoard(runId, true);
+      snapshot = await boardFor(runId);
     } catch (err) {
       return jsonError(res, 404, err instanceof Error ? err.message : String(err));
     }
@@ -364,21 +391,26 @@ export function mountHttp(app: Express): void {
         pending_decisions: snapshot.pending_decisions,
       });
     }
-    active.hold.release();
+    if (active?.runId === runId) {
+      active.hold.release();
+    } else {
+      await publishRelease(runId);
+    }
     res.json({ ok: true, runId, phase: "write" });
   });
 
-  app.post("/api/runs/:id/abort", (req: Request, res: Response) => {
+  app.post("/api/runs/:id/abort", async (req: Request, res: Response) => {
     let runId: string;
     try {
       runId = param(req, "id");
     } catch (err) {
       return jsonError(res, 400, err instanceof Error ? err.message : String(err));
     }
-    if (!active || active.runId !== runId) {
-      return jsonError(res, 409, "run is not active");
+    if (active?.runId === runId) {
+      active.hold.abort("killed from dashboard");
+    } else {
+      await publishAbort(runId, "killed from dashboard");
     }
-    active.hold.abort("killed from dashboard");
     try {
       const manifest = readManifest(runDirFor(runId));
       manifest.phase = "failed";
@@ -395,11 +427,57 @@ export function getActiveRunId(): string | undefined {
   return active?.runId;
 }
 
-async function keepAlive(done: Promise<unknown>): Promise<void> {
+function keepRunAlive(runId: string, hold: HttpHold, done: Promise<unknown>): void {
+  const work = (async () => {
+    const tick = async () => {
+      try {
+        await publishBoard(runId, assembleBoard(runId, true));
+      } catch {
+        /* manifest may not be ready on the first tick */
+      }
+      try {
+        const ctl = await takeRemoteCtl(runId);
+        if (ctl.abort) {
+          hold.abort(ctl.abort);
+          return;
+        }
+        for (const [slug, record] of Object.entries(ctl.decisions)) {
+          try {
+            writeJson(runDirFor(runId), slug, "decision.json", record);
+          } catch {
+            /* */
+          }
+          try {
+            hold.record(slug, record);
+          } catch {
+            /* already aborted */
+          }
+        }
+        if (ctl.release) {
+          try {
+            hold.release();
+          } catch {
+            /* */
+          }
+        }
+      } catch {
+        /* cache optional */
+      }
+    };
+    await tick();
+    const iv = setInterval(() => {
+      void tick();
+    }, 750);
+    try {
+      await done;
+    } finally {
+      clearInterval(iv);
+      await tick();
+    }
+  })();
   try {
-    const mod = await import("@vercel/functions");
-    mod.waitUntil(done);
+    waitUntil(work);
   } catch {
-    /* local Node: the promise is already running */
+    void work;
   }
 }

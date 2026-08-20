@@ -16,6 +16,7 @@ const state = {
   releasing: false,
   killing: false,
   poll: null,
+  pollMisses: 0,
   modal: null,
   authed: false,
   coachStep: null,
@@ -930,6 +931,7 @@ function bindBoardClicks() {
 async function pollOnce() {
   if (!state.runId) return;
   const board = await api(`/api/runs/${state.runId}`);
+  state.pollMisses = 0;
   state.board = board;
   if (board.can_release && !state.releasing) {
     state.releasing = true;
@@ -950,6 +952,8 @@ function startPoll() {
   stopPoll();
   state.poll = setInterval(() => {
     pollOnce().catch((err) => {
+      state.pollMisses = (state.pollMisses || 0) + 1;
+      if (state.pollMisses < 8) return;
       $("hint").textContent = err instanceof Error ? err.message : String(err);
     });
   }, 1000);
