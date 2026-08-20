@@ -1,4 +1,4 @@
-import type { MigrationSpec } from "./spec-schema.ts";
+import type { MigrationSpec } from "./spec-schema.js";
 
 /**
  * Soft seam (session brief). Policies can rewrite or annotate a spec after

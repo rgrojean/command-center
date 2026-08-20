@@ -1,6 +1,6 @@
-import type { FleetRepo } from "./fleet.ts";
-import type { MigrationSpec } from "./spec-schema.ts";
-import type { WriteSummary } from "./write-summary-schema.ts";
+import type { FleetRepo } from "./fleet.js";
+import type { MigrationSpec } from "./spec-schema.js";
+import type { WriteSummary } from "./write-summary-schema.js";
 
 export type FakePullRequest = {
   stub: true;

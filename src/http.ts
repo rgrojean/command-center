@@ -1,13 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Express, Request, Response } from "express";
-import { assembleBoard, chipsFromDiff, latestRunId, liveEnabled } from "./board-payload.ts";
-import { diffOpenApi, resolveV2Path } from "./diff.ts";
-import { loadFleet, parseFleet, producerOf } from "./fleet.ts";
-import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.ts";
-import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.ts";
-import { runPipeline } from "./pipeline.ts";
-import { ExecutionGradeSchema } from "./spec-schema.ts";
+import { assembleBoard, chipsFromDiff, latestRunId, liveEnabled } from "./board-payload.js";
+import { diffOpenApi, resolveV2Path } from "./diff.js";
+import { loadFleet, parseFleet, producerOf } from "./fleet.js";
+import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.js";
+import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.js";
+import { runPipeline } from "./pipeline.js";
+import { ExecutionGradeSchema } from "./spec-schema.js";
 import {
   createRun,
   listRunIds,
@@ -17,7 +17,7 @@ import {
   runDirFor,
   writeJson,
   writeManifest,
-} from "./state.ts";
+} from "./state.js";
 
 const ENGAGE_DIR = join(STATE_DIR, "_engage");
 

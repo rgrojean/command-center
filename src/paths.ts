@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isVercel } from "./runtime.ts";
+import { isVercel } from "./runtime.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

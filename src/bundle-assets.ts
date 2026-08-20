@@ -6,7 +6,7 @@ import {
   STUBS_DIR,
   V2_SPEC_PATH,
   V3_SPEC_PATH,
-} from "./paths.ts";
+} from "./paths.js";
 
 /** Static reads so Vercel file tracing keeps demo assets in the function bundle. */
 readFileSync(FLEET_PATH);

@@ -1,4 +1,4 @@
-import type { TerminalState } from "./terminal-states.ts";
+import type { TerminalState } from "./terminal-states.js";
 
 export type TransitionEvent = {
   runId: string;

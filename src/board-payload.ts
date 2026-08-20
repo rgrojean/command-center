@@ -1,16 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fanoutNote, labelConcurrency, type FanoutRecord } from "./concurrency.ts";
-import { diffOpenApi, type DiffResult } from "./diff.ts";
-import { consumersOf, parseFleet, producerOf, type Fleet, type FleetRepo } from "./fleet.ts";
+import { fanoutNote, labelConcurrency, type FanoutRecord } from "./concurrency.js";
+import { diffOpenApi, type DiffResult } from "./diff.js";
+import { consumersOf, parseFleet, producerOf, type Fleet, type FleetRepo } from "./fleet.js";
 import {
   humanImpactModelFor,
   researchModelFor,
   writeModelForGrade,
   writeModelsFor,
-} from "./models.ts";
-import { FLEET_PATH } from "./paths.ts";
-import { needsHumanDecision, type MigrationSpec } from "./spec-schema.ts";
+} from "./models.js";
+import { FLEET_PATH } from "./paths.js";
+import { needsHumanDecision, type MigrationSpec } from "./spec-schema.js";
 import {
   inferPhase,
   listRunIds,
@@ -21,7 +21,7 @@ import {
   type GateDecisionRecord,
   type RunManifest,
   type RunPhase,
-} from "./state.ts";
+} from "./state.js";
 
 export type DiffChip = {
   tone: "red" | "amber" | "slate";
@@ -281,7 +281,7 @@ function loadRunFleet(runDir: string): Fleet {
   return parseFleet(JSON.parse(readFileSync(FLEET_PATH, "utf8")));
 }
 
-export { liveEnabled } from "./cursor-auth.ts";
+export { liveEnabled } from "./cursor-auth.js";
 
 export function assembleBoard(runId: string, controlling: boolean): BoardSnapshot {
   const runDir = runDirFor(runId);

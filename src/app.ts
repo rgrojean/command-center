@@ -1,10 +1,10 @@
-import "./bundle-assets.ts";
+import "./bundle-assets.js";
 import express from "express";
-import { loginHandler, requireAuth, sessionHandler } from "./auth.ts";
-import { diffOpenApi, resolveV2Path } from "./diff.ts";
-import { loadFleet } from "./fleet.ts";
-import { mountHttp } from "./http.ts";
-import { FLEET_PATH, V2_SPEC_PATH, V3_SPEC_PATH, WEB_DIR } from "./paths.ts";
+import { loginHandler, requireAuth, sessionHandler } from "./auth.js";
+import { diffOpenApi, resolveV2Path } from "./diff.js";
+import { loadFleet } from "./fleet.js";
+import { mountHttp } from "./http.js";
+import { FLEET_PATH, V2_SPEC_PATH, V3_SPEC_PATH, WEB_DIR } from "./paths.js";
 
 const app = express();
 app.use(express.json({ limit: "8mb" }));

@@ -1,9 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { FanoutRecord } from "./concurrency.ts";
-import { STATE_DIR } from "./paths.ts";
-import type { ExecutionGrade } from "./spec-schema.ts";
-import type { PipelineStage, TerminalState } from "./terminal-states.ts";
+import type { FanoutRecord } from "./concurrency.js";
+import { STATE_DIR } from "./paths.js";
+import type { ExecutionGrade } from "./spec-schema.js";
+import type { PipelineStage, TerminalState } from "./terminal-states.js";
 
 export type RunEvent = {
   ts: string;

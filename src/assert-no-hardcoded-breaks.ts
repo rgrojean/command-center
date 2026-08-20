@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { PROMPTS_DIR, ROOT } from "./paths.ts";
+import { PROMPTS_DIR, ROOT } from "./paths.js";
 
 /**
  * D30: breaking field names must come from the diff, not from literals in

@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import type { FleetRepo } from "./fleet.ts";
-import type { MigrationSpec } from "./spec-schema.ts";
+import type { FleetRepo } from "./fleet.js";
+import type { MigrationSpec } from "./spec-schema.js";
 
 export type GateDecision = "approved" | "rejected";
 

@@ -3,10 +3,10 @@ import {
   LIVE_RESEARCH_MODEL,
   MODEL_ROUTING,
   writeModelForGrade,
-} from "./models.ts";
-import { runAgent, type AgentMode, type RunAgentResult } from "./run-agent.ts";
-import type { AgentEvent } from "./run-agent-types.ts";
-import type { ExecutionGrade } from "./spec-schema.ts";
+} from "./models.js";
+import { runAgent, type AgentMode, type RunAgentResult } from "./run-agent.js";
+import type { AgentEvent } from "./run-agent-types.js";
+import type { ExecutionGrade } from "./spec-schema.js";
 
 export type CallSiteOpts = {
   repo: string;

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { ConcurrencySchema, type Concurrency } from "./concurrency.ts";
-import { FLEET_PATH } from "./paths.ts";
+import { ConcurrencySchema, type Concurrency } from "./concurrency.js";
+import { FLEET_PATH } from "./paths.js";
 
 const KindSchema = z.enum(["api", "batch", "web"]);
 const RoleSchema = z.enum(["producer", "consumer"]);

@@ -1,9 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import type { FleetRepo } from "./fleet.ts";
-import { producer } from "./fleet.ts";
-import { V3_SPEC_COPY, WORKSPACES_DIR } from "./paths.ts";
+import type { FleetRepo } from "./fleet.js";
+import { producer } from "./fleet.js";
+import { V3_SPEC_COPY, WORKSPACES_DIR } from "./paths.js";
 
 export const WRITE_BRANCH = "migration/spec-v3";
 

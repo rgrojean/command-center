@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { breakingFieldEnum, EvidenceSchema } from "./evidence.ts";
-import { DownstreamImpactsSchema } from "./human-impact-schema.ts";
+import { breakingFieldEnum, EvidenceSchema } from "./evidence.js";
+import { DownstreamImpactsSchema } from "./human-impact-schema.js";
 
 export const VerdictSchema = z.enum(["affected", "unaffected", "blocked"]);
 export type Verdict = z.infer<typeof VerdictSchema>;

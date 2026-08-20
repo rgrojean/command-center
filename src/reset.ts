@@ -1,9 +1,9 @@
 import { rmSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { WRITE_BRANCH } from "./clone.ts";
-import { consumers } from "./fleet.ts";
-import { STATE_DIR, WORKSPACES_DIR } from "./paths.ts";
+import { WRITE_BRANCH } from "./clone.js";
+import { consumers } from "./fleet.js";
+import { STATE_DIR, WORKSPACES_DIR } from "./paths.js";
 
 const BRANCH = WRITE_BRANCH;
 

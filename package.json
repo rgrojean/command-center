@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "tsx src/dashboard.ts",
-    "pipeline": "tsx src/index.ts",
+    "pipeline": "tsx src/cli.ts",
     "dashboard": "tsx src/dashboard.ts",
     "assert:fields": "tsx src/assert-no-hardcoded-breaks.ts",
     "reset": "bash reset.sh",

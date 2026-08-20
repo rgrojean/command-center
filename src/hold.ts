@@ -1,4 +1,4 @@
-import type { ExecutionGrade } from "./spec-schema.ts";
+import type { ExecutionGrade } from "./spec-schema.js";
 
 export type HttpDecision = {
   decision: "approved" | "rejected";

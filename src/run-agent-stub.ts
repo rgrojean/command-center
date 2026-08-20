@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PipelineKilled } from "./hold.ts";
-import { STUBS_DIR } from "./paths.ts";
-import { HumanImpactSchema } from "./human-impact-schema.ts";
-import { WriteSummarySchema } from "./write-summary-schema.ts";
-import type { RunAgentOptions, RunAgentResult } from "./run-agent-types.ts";
+import { PipelineKilled } from "./hold.js";
+import { STUBS_DIR } from "./paths.js";
+import { HumanImpactSchema } from "./human-impact-schema.js";
+import { WriteSummarySchema } from "./write-summary-schema.js";
+import type { RunAgentOptions, RunAgentResult } from "./run-agent-types.js";
 
 /** Long enough that a 1s board poll sees all eight research cards live (D33). */
 const STUB_DELAY_MS = 450;

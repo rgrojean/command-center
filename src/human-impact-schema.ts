@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EvidenceSchema } from "./evidence.ts";
+import { EvidenceSchema } from "./evidence.js";
 
 /**
  * Human-impact agent output. By D23 this object IS `spec.downstream_impacts`

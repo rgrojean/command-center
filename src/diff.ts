@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { V2_SPEC_PATH, V3_SPEC_PATH, WORKSPACES_DIR } from "./paths.ts";
+import { V2_SPEC_PATH, V3_SPEC_PATH, WORKSPACES_DIR } from "./paths.js";
 
 type Json = Record<string, unknown>;
 

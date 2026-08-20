@@ -1,10 +1,10 @@
 import { Agent, CursorAgentError } from "@cursor/sdk";
-import { CapacityError, isCapacityError } from "./concurrency.ts";
-import { cursorApiKey } from "./cursor-auth.ts";
-import { PipelineKilled } from "./hold.ts";
-import { extractJson } from "./json-extract.ts";
-import type { RunAgentOptions, RunAgentResult, AgentEvent } from "./run-agent-types.ts";
-import { useCloudAgents } from "./runtime.ts";
+import { CapacityError, isCapacityError } from "./concurrency.js";
+import { cursorApiKey } from "./cursor-auth.js";
+import { PipelineKilled } from "./hold.js";
+import { extractJson } from "./json-extract.js";
+import type { RunAgentOptions, RunAgentResult, AgentEvent } from "./run-agent-types.js";
+import { useCloudAgents } from "./runtime.js";
 
 /** No stream event for this long → cancel and retry once (D34). */
 export const STREAM_IDLE_MS = 90_000;

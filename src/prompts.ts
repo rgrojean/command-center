@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PROMPTS_DIR } from "./paths.ts";
-import { schemaToPromptJson } from "./json-schema.ts";
-import { HumanImpactSchema } from "./human-impact-schema.ts";
-import { WriteSummarySchema } from "./write-summary-schema.ts";
+import { PROMPTS_DIR } from "./paths.js";
+import { schemaToPromptJson } from "./json-schema.js";
+import { HumanImpactSchema } from "./human-impact-schema.js";
+import { WriteSummarySchema } from "./write-summary-schema.js";
 import type { z } from "zod";
 
 export type PromptKind = "research" | "human-impact" | "write";

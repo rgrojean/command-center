@@ -1,4 +1,4 @@
-import type { ExecutionGrade } from "./spec-schema.ts";
+import type { ExecutionGrade } from "./spec-schema.js";
 
 /**
  * D20 model routing. IDs from Cursor.models.list() on this account (2026-08-16).

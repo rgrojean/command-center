@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import type { FleetRepo } from "./fleet.ts";
-import { WRITE_BRANCH } from "./clone.ts";
-import { prBody, prTitle } from "./fake-pr.ts";
-import { V3_SPEC_COPY } from "./paths.ts";
-import type { MigrationSpec } from "./spec-schema.ts";
-import type { WriteSummary } from "./write-summary-schema.ts";
+import type { FleetRepo } from "./fleet.js";
+import { WRITE_BRANCH } from "./clone.js";
+import { prBody, prTitle } from "./fake-pr.js";
+import { V3_SPEC_COPY } from "./paths.js";
+import type { MigrationSpec } from "./spec-schema.js";
+import type { WriteSummary } from "./write-summary-schema.js";
 
 export type OpenedPullRequest = {
   stub: false;

@@ -1,5 +1,5 @@
-import type { DownstreamImpacts } from "./human-impact-schema.ts";
-import type { MigrationSpec, ResearchSpec } from "./spec-schema.ts";
+import type { DownstreamImpacts } from "./human-impact-schema.js";
+import type { MigrationSpec, ResearchSpec } from "./spec-schema.js";
 
 /**
  * D23 — deterministic splice, disjoint ownership, no third LLM pass.

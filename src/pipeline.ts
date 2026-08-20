@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type ZodType } from "zod";
-import { runReadOnlyAgent, runWriteAgent } from "./agents.ts";
+import { runReadOnlyAgent, runWriteAgent } from "./agents.js";
 import {
   ensureBilboClone,
   ensureClone,
@@ -9,8 +9,8 @@ import {
   inspectResearchWorkspace,
   prepareWriteWorkspace,
   workspaceFor,
-} from "./clone.ts";
-import { diffOpenApi, resolveV2Path } from "./diff.ts";
+} from "./clone.js";
+import { diffOpenApi, resolveV2Path } from "./diff.js";
 import {
   applyDegrade,
   initialFanout,
@@ -18,7 +18,7 @@ import {
   labelConcurrency,
   mapFanout,
   type Concurrency,
-} from "./concurrency.ts";
+} from "./concurrency.js";
 import {
   consumersOf,
   fleetResearchConcurrency,
@@ -28,35 +28,35 @@ import {
   researchConsumersOf,
   type Fleet,
   type FleetRepo,
-} from "./fleet.ts";
-import { buildEscalation, buildFakePr } from "./fake-pr.ts";
-import { runGate } from "./gate.ts";
-import { isPipelineKilled, type HttpDecision, type HttpHold } from "./hold.ts";
-import { mergeResearchAndHumanImpact } from "./merge.ts";
+} from "./fleet.js";
+import { buildEscalation, buildFakePr } from "./fake-pr.js";
+import { runGate } from "./gate.js";
+import { isPipelineKilled, type HttpDecision, type HttpHold } from "./hold.js";
+import { mergeResearchAndHumanImpact } from "./merge.js";
 import {
   humanImpactModelFor,
   nextModelTier,
   researchModelFor,
   writeModelForGrade,
-} from "./models.ts";
-import { notify } from "./notifier.ts";
-import { V2_SPEC_PATH, V3_SPEC_COPY, V3_SPEC_PATH, STATE_DIR, FLEET_PATH } from "./paths.ts";
-import { applyPolicies } from "./policies.ts";
-import { openPullRequest } from "./pr.ts";
+} from "./models.js";
+import { notify } from "./notifier.js";
+import { V2_SPEC_PATH, V3_SPEC_COPY, V3_SPEC_PATH, STATE_DIR, FLEET_PATH } from "./paths.js";
+import { applyPolicies } from "./policies.js";
+import { openPullRequest } from "./pr.js";
 import {
   renderHumanImpactPrompt,
   renderResearchPrompt,
   renderWritePrompt,
-} from "./prompts.ts";
-import type { AgentMode, RunAgentResult } from "./run-agent.ts";
-import { HumanImpactSchema } from "./human-impact-schema.ts";
+} from "./prompts.js";
+import type { AgentMode, RunAgentResult } from "./run-agent.js";
+import { HumanImpactSchema } from "./human-impact-schema.js";
 import {
   migrationSpecSchemaFor,
   needsHumanDecision,
   researchSpecSchemaFor,
   type MigrationSpec,
   type WorkspaceHygiene,
-} from "./spec-schema.ts";
+} from "./spec-schema.js";
 import {
   appendEvent,
   appendRunEvent,
@@ -69,10 +69,10 @@ import {
   writePrompt,
   writeRunJson,
   type RunManifest,
-} from "./state.ts";
-import type { PipelineStage, TerminalState } from "./terminal-states.ts";
-import { WriteSummarySchema, writeRunFailed, type WriteSummary } from "./write-summary-schema.ts";
-import { openRealPrs, useCloudAgents } from "./runtime.ts";
+} from "./state.js";
+import type { PipelineStage, TerminalState } from "./terminal-states.js";
+import { WriteSummarySchema, writeRunFailed, type WriteSummary } from "./write-summary-schema.js";
+import { openRealPrs, useCloudAgents } from "./runtime.js";
 
 const INNER_RETRY_BUDGET = 3;
 
