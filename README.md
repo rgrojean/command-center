@@ -16,6 +16,18 @@ Password: `rcgcursordemo`
 
 LIVE uses the operator’s `CURSOR_API_KEY` for everyone on the demo. Stub rehearsal needs no key.
 
+GitHub: [rgrojean/command-center](https://github.com/rgrojean/command-center)
+
+Import that repo in Vercel ([Deploy](https://vercel.com/new/clone?repository-url=https://github.com/rgrojean/command-center)) and set:
+
+| Env | Value |
+|---|---|
+| `CURSOR_API_KEY` | your Cursor user key (Dashboard → Integrations) |
+| `APP_PASSWORD` | `rcgcursordemo` |
+| `OPEN_REAL_PRS` | `false` |
+
+Anonymous/temporary Vercel deploys only ship `public/` static files. A logged-in Git import is required so Express (the pipeline) is built as a function. On Vercel, LIVE agents run in Cursor cloud (no local executor).
+
 ## Run locally
 
 ```bash
