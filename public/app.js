@@ -175,14 +175,30 @@ function lastTick(events, idle) {
   return `${kind} ${text}`.slice(0, 72);
 }
 
+const TICK_NOISE = new Set(["run_poll", "stream_recover", "stream_idle", "stream_idle_retry"]);
+
+function tickNoise(type) {
+  return TICK_NOISE.has(String(type || "").toLowerCase());
+}
+
+function watchingCloud(events) {
+  const last = events[events.length - 1];
+  return !!last && tickNoise(last.type);
+}
+
 function lastTickHtml(lane, stage, events, idle) {
   const fail = [...events].reverse().find((e) => String(e.type || "").toLowerCase() === "agent_failed");
   if (fail) return esc(lastTick([fail], idle));
+  const useful = (events || []).filter((e) => !tickNoise(e.type));
+  if (watchingCloud(events)) {
+    const prev = useful.length ? lastTick(useful, idle) : idle;
+    return esc(`watching cloud · ${prev}`.slice(0, 72));
+  }
   if (!events.length) return esc(idle);
-  if (assistantJson(events)) {
+  if (assistantJson(useful.length ? useful : events)) {
     return `result · <button class="json-link" type="button" data-json-slug="${esc(lane.slug)}" data-json-stage="${esc(stage)}" data-json-idx="all">json result</button>`;
   }
-  return esc(lastTick(events, idle));
+  return esc(lastTick(useful.length ? useful : events, idle));
 }
 
 function kindLabel(type) {
@@ -191,7 +207,9 @@ function kindLabel(type) {
   if (t === "assistant") return "OUT";
   if (t === "tool_call") return "TOOL";
   if (t === "judgment_call") return "JUDGMENT";
-  if (t === "schema_retry") return "RETRY";
+  if (t === "schema_retry" || t === "json_retry") return "RETRY";
+  if (t === "stream_recover" || t === "run_poll") return "POLL";
+  if (t === "stream_idle" || t === "stream_idle_retry") return "IDLE";
   if (t === "start") return "START";
   if (t === "start_pin" || t === "starting_ref") return "PIN";
   if (t === "pair_failed" || t === "agent_failed") return "FAILED";
@@ -294,6 +312,7 @@ function agentState(lane, stage, phase) {
   }
   if (failedEvt) return "failed";
   if (hasSpec) return "done";
+  if (watchingCloud(events)) return "running";
   if (assistantJson(events)) return "done";
   if (lane.terminal === "failed" && !hasSpec) return "failed";
   if (events.length && !lane.terminal) return "running";

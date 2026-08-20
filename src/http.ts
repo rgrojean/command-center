@@ -8,6 +8,7 @@ import { businessContextProse, loadFleet, parseFleet, producerOf } from "./fleet
 import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.js";
 import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.js";
 import { runPipeline } from "./pipeline.js";
+import { beginIsolateBudget } from "./runtime.js";
 import {
   loadCachedBoard,
   publishAbort,
@@ -247,6 +248,7 @@ export function mountHttp(app: Express): void {
     const inputDir = join(existing.dir, "inputs");
     const runPaths = materializeInputs(body, inputDir);
     const hold = createHttpHold();
+    beginIsolateBudget();
     const done = runPipeline({
       mode,
       autoApprove: false,

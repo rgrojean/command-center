@@ -13,7 +13,23 @@ export function extractJson(text: string): unknown {
   if (!slice) {
     throw new Error("agent output did not contain a complete JSON object");
   }
-  return JSON.parse(slice);
+  return parseJsonSlice(slice);
+}
+
+function parseJsonSlice(slice: string): unknown {
+  try {
+    return JSON.parse(slice);
+  } catch (first) {
+    const relaxed = slice.replace(/,\s*([\]}])/g, "$1");
+    if (relaxed !== slice) {
+      try {
+        return JSON.parse(relaxed);
+      } catch {
+        /* keep the original SyntaxError */
+      }
+    }
+    throw first;
+  }
 }
 
 /** First `{` … matching `}`, respecting strings. Trailing text is ignored. */
@@ -53,6 +69,12 @@ export function describeAgentFailure(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   if (/did not contain a complete JSON object/i.test(message)) return "incomplete JSON in output";
   if (/did not contain a JSON object/i.test(message)) return "no JSON object in output";
+  if (/JSON at position|Expected ',' or '\]'|Expected ',' or '\}'|Unexpected token/i.test(message)) {
+    return "malformed JSON in output";
+  }
+  if (/host time budget|did not finish before host time/i.test(message)) {
+    return "cloud run still going when host time ran out";
+  }
   if (/SDK startup failed/i.test(message)) {
     const inner = message.replace(/^SDK startup failed[^:]*:\s*/i, "").trim();
     return inner && inner.length <= 140 ? `startup: ${inner}` : "SDK startup failed";
