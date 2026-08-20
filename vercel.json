@@ -1,11 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "fluid": true,
-  "functions": {
-    "src/app.ts": {
-      "maxDuration": 800,
-      "memory": 1024,
-      "includeFiles": "{prompts,fixtures,specs,public}/**/*,fleet.json"
-    }
-  }
+  "fluid": true
 }

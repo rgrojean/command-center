@@ -1,3 +1,4 @@
+import "./bundle-assets.ts";
 import express from "express";
 import { loginHandler, requireAuth, sessionHandler } from "./auth.ts";
 import { diffOpenApi, resolveV2Path } from "./diff.ts";
