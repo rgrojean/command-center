@@ -67,14 +67,7 @@ const ArchitectureDrawer = (() => {
   }
 
   function agentCard(name, does, paths) {
-    return `<div class="arch-card">
-      <div class="arch-card-head">
-        <span>${esc(name)}</span>
-        <span class="arch-kind-label">Non-deterministic</span>
-      </div>
-      <p>${esc(does)}</p>
-      ${files(paths)}
-    </div>`;
+    return stage(name, "agent", does, paths);
   }
 
   function pipelineHtml() {
@@ -229,10 +222,6 @@ const ArchitectureDrawer = (() => {
         <span><i class="arch-kind det"></i> Deterministic</span>
         <span><i class="arch-kind agent"></i> Non-deterministic</span>
         <span><i class="arch-kind human"></i> Human</span>
-      </div>
-      <div class="arch-callout warn">
-        <div class="arch-callout-title">D32 numbering collision</div>
-        <p>Walkthrough notes call reviewer-directives D32. The ADR uses D32 for workspace lifecycle (clone.ts). In code the directive seam is HttpDecision.note / gate_note — stored, not wired into the write prompt.</p>
       </div>
       <h2 class="arch-h">Pipeline</h2>
       <div class="arch-pipeline">${pipelineHtml()}</div>

@@ -998,6 +998,7 @@ async function startRun() {
   state.board = { runId: started.runId, mode: started.mode, phase: "research", lanes: idleLanesFromPreview(), chips: state.preview?.chips, producer: state.preview?.producer, fleet_count: state.preview?.fleet?.counts, holding: false, elapsed_s: 0, controlling: true };
   renderBoard();
   startPoll();
+  showCoach("arch");
 }
 
 async function killRun() {
@@ -1054,6 +1055,7 @@ let coachRaf = 0;
 function coachHole() {
   if (state.coachStep === "live") return $("live-check");
   if (state.coachStep === "run") return $("run-btn");
+  if (state.coachStep === "arch") return $("arch-btn");
   return null;
 }
 
@@ -1070,6 +1072,12 @@ function placeCoach() {
   spot.style.height = `${size}px`;
   spot.style.left = `${rect.left + rect.width / 2 - size / 2}px`;
   spot.style.top = `${rect.top + rect.height / 2 - size / 2}px`;
+  if (step === "arch") {
+    const tipW = Math.min(320, window.innerWidth - 32);
+    tip.style.left = `${Math.max(16, rect.right - tipW)}px`;
+    tip.style.top = `${rect.bottom + 18}px`;
+    return;
+  }
   const tipLeft = Math.max(16, Math.min(rect.left, window.innerWidth - 360));
   const below = rect.bottom + 18;
   const tipTop = below + 140 > window.innerHeight ? Math.max(16, rect.top - 150) : below;
@@ -1101,7 +1109,9 @@ function showCoach(step) {
   $("coach-text").textContent =
     step === "live"
       ? "Check LIVE to kick off a live Cursor SDK call, spinning up agents per repo. Leave it off for a stub rehearsal with no SDK calls."
-      : "RUN starts research across every consumer. The gate holds until you approve or reject each spec.";
+      : step === "arch"
+        ? "Run takes about 5 minutes. Review the design and decisions behind the tool."
+        : "RUN starts research across every consumer. The gate holds until you approve or reject each spec.";
   $("coach").classList.remove("hidden");
   $("coach").setAttribute("aria-hidden", "false");
   bindCoachTracking(true);
@@ -1252,7 +1262,10 @@ async function init() {
     });
   };
   ArchitectureDrawer.mount();
-  $("arch-btn").onclick = () => ArchitectureDrawer.toggle();
+  $("arch-btn").onclick = () => {
+    hideCoach();
+    ArchitectureDrawer.toggle();
+  };
   $("arch-close").onclick = () => ArchitectureDrawer.close();
   $("arch").addEventListener("click", (ev) => {
     if (ev.target.closest("[data-close-arch]")) ArchitectureDrawer.close();

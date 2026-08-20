@@ -677,6 +677,12 @@ body.arch-open { overflow: hidden; }
 .arch-kind.det { background: var(--green); }
 .arch-kind.agent { background: var(--blue); }
 .arch-kind.human { background: var(--amber); }
+.arch-stage .arch-kind-label {
+  color: var(--text-muted);
+}
+.arch-stage:has(.arch-kind.agent) .arch-kind-label { color: var(--blue); }
+.arch-stage:has(.arch-kind.human) .arch-kind-label { color: var(--amber); }
+.arch-stage:has(.arch-kind.det) .arch-kind-label { color: var(--green); }
 .arch-stage-body { flex: 1; min-width: 0; }
 .arch-stage-head, .arch-card-head {
   display: flex;
