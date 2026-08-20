@@ -25,6 +25,7 @@ Import that repo in Vercel ([Deploy](https://vercel.com/new/clone?repository-url
 | `CURSOR_API_KEY` | your Cursor user key (Dashboard → Integrations) |
 | `APP_PASSWORD` | `rcgcursordemo` |
 | `OPEN_REAL_PRS` | `false` |
+| `GITHUB_TOKEN` | optional; needed to resolve `baseline_tag` on private fleet repos |
 
 Anonymous/temporary Vercel deploys only ship `public/` static files. A logged-in Git import is required so Express (the pipeline) is built as a function. On Vercel, LIVE agents run in Cursor cloud (no local executor).
 
@@ -101,7 +102,7 @@ A string array is still accepted and joined into one block. That text is copied 
 }
 ```
 
-Live agents clone each consumer at `baseline_tag`. On Vercel they run as Cursor **cloud** agents (no local executor). Locally they run against clones in `workspaces/`.
+Live agents start from `baseline_tag`. Local clones accept a tag (`git clone --branch`). Cursor cloud agents only accept a **branch name or commit SHA**, so tags are resolved to SHAs via the GitHub API before a cloud agent starts. Private fleet repos need `GITHUB_TOKEN`.
 
 Set `OPEN_REAL_PRS=true` only if write agents should push GitHub PRs. The hosted demo leaves this off.
 

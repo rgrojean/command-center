@@ -1,6 +1,7 @@
 import { Agent, CursorAgentError } from "@cursor/sdk";
 import { CapacityError, isCapacityError } from "./concurrency.js";
 import { cursorApiKey } from "./cursor-auth.js";
+import { cloudStartingRef } from "./github-ref.js";
 import { PipelineKilled } from "./hold.js";
 import { extractJson } from "./json-extract.js";
 import type { RunAgentOptions, RunAgentResult, AgentEvent } from "./run-agent-types.js";
@@ -117,6 +118,18 @@ async function runLiveAttempt(
   const apiKey = cursorApiKey();
   throwIfKilled(opts.signal);
   const cloud = useCloudAgents();
+  const startingRef = cloud
+    ? await cloudStartingRef(opts.githubUrl, opts.startingRef)
+    : opts.startingRef;
+  if (cloud && !startingRef) {
+    throw new Error(`live ${opts.kind} for ${opts.repo} needs startingRef on cloud runtime`);
+  }
+  if (cloud && startingRef && startingRef !== opts.startingRef) {
+    emit({
+      type: "starting_ref",
+      text: `cloud startingRef ${opts.startingRef} → ${startingRef}`,
+    });
+  }
   const agent = await Agent.create({
     ...(apiKey ? { apiKey } : {}),
     model: { id: opts.model },
@@ -126,7 +139,7 @@ async function runLiveAttempt(
             repos: [
               {
                 url: opts.githubUrl!,
-                startingRef: opts.startingRef,
+                startingRef,
               },
             ],
             autoCreatePR: opts.kind === "write" && opts.autoCreatePR === true,
