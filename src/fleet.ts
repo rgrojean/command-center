@@ -25,8 +25,8 @@ export const FleetSchema = z.object({
   org: z.string().min(1),
   baseline_tag: z.string().min(1),
   producer: z.string().min(1),
-  /** Injected into LEGOLAS (research) and GIMLI (write) prompts. */
-  business_context: z.array(z.string()).optional(),
+  /** Freeform notes copied into every LEGOLAS and GIMLI prompt. Array form is joined. */
+  business_context: z.union([z.string(), z.array(z.string())]).optional(),
   /** Across-repo research pairs. Default full. Within-repo LEGOLAS ∥ BILBO is not this knob. */
   research_concurrency: ConcurrencySchema.optional(),
   /** Across approved-repo write agents. Default full. */
@@ -34,6 +34,13 @@ export const FleetSchema = z.object({
   repos: z.array(FleetRepoSchema).min(1),
 });
 export type Fleet = z.infer<typeof FleetSchema>;
+
+/** Modal and fleet.json both collapse to one prose block. */
+export function businessContextProse(raw: string | string[] | undefined | null): string {
+  if (raw == null) return "";
+  if (Array.isArray(raw)) return raw.map((s) => s.trim()).filter(Boolean).join("\n\n");
+  return raw.trim();
+}
 
 export function fleetResearchConcurrency(fleet: Fleet): Concurrency {
   return fleet.research_concurrency ?? "full";

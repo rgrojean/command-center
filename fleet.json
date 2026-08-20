@@ -2,7 +2,7 @@
   "org": "rgrojean",
   "baseline_tag": "baseline-v2",
   "producer": "identity_service",
-  "business_context": [],
+  "business_context": "",
   "research_concurrency": "full",
   "write_concurrency": "full",
   "repos": [

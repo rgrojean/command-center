@@ -58,17 +58,15 @@ npm run pipeline -- --live --yes
 
 Defaults ship in `specs/` and `fleet.json`. The dashboard can upload replacements, or download the sample fleet as a template.
 
-Optional fleet field, also editable in the pre-run popup:
+Optional fleet field, also editable in the pre-run popup as freeform prose:
 
 ```json
 {
-  "business_context": [
-    "Domain notes for LEGOLAS and GIMLI — compliance rules, identifier conventions, what must not be shimmed."
-  ]
+  "business_context": "Patients are addressed by given/family in comms. Do not add a compatibility field for anything the v3 spec removed."
 }
 ```
 
-That array is injected into the research (LEGOLAS) and write (GIMLI) prompts only. BILBO is unchanged.
+A string array is still accepted and joined into one block. That text is copied into every research (LEGOLAS) and write (GIMLI) prompt. BILBO is unchanged.
 
 ## Fleet shape
 
@@ -77,7 +75,7 @@ That array is injected into the research (LEGOLAS) and write (GIMLI) prompts onl
   "org": "your-github-org",
   "baseline_tag": "baseline-v2",
   "producer": "producer_slug",
-  "business_context": [],
+  "business_context": "",
   "research_concurrency": "full",
   "write_concurrency": "full",
   "repos": [

@@ -7,7 +7,7 @@ const state = {
   preview: null,
   previewError: "",
   files: { v2: null, v3: null, fleet: null },
-  businessContext: [],
+  businessContext: "",
   mode: "stub",
   runId: null,
   board: null,
@@ -72,7 +72,7 @@ function previewBody() {
   if (state.files.v2) body.v2 = state.files.v2;
   if (state.files.v3) body.v3 = state.files.v3;
   if (state.files.fleet) body.fleet = state.files.fleet;
-  if (state.businessContext.length) body.business_context = state.businessContext;
+  if (state.businessContext.trim()) body.business_context = state.businessContext.trim();
   return body;
 }
 
@@ -113,8 +113,8 @@ async function refreshPreview() {
     const p = await api("/api/preview", { method: "POST", body: JSON.stringify(previewBody()) });
     state.preview = p;
     state.previewError = "";
-    if (!state.businessContext.length && p.fleet?.business_context?.length) {
-      state.businessContext = [...p.fleet.business_context];
+    if (!state.businessContext.trim() && p.fleet?.business_context) {
+      state.businessContext = String(p.fleet.business_context);
     }
   } catch (err) {
     state.preview = null;
@@ -1109,11 +1109,11 @@ function hideCoach() {
 }
 
 function showContextModal() {
-  const fromFleet = state.preview?.fleet?.business_context || [];
-  if (!state.businessContext.length && fromFleet.length) {
-    state.businessContext = [...fromFleet];
+  const fromFleet = state.preview?.fleet?.business_context;
+  if (!state.businessContext.trim() && fromFleet) {
+    state.businessContext = String(fromFleet);
   }
-  $("context-text").value = state.businessContext.join("\n");
+  $("context-text").value = state.businessContext;
   showOverlay("context-modal", true);
 }
 
@@ -1122,10 +1122,7 @@ function hideContextModal() {
 }
 
 function applyContextFromTextarea() {
-  state.businessContext = String($("context-text").value || "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  state.businessContext = String($("context-text").value || "").trim();
 }
 
 async function downloadSample(path, filename) {

@@ -51,8 +51,8 @@
     <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="context-title">
       <div class="dossier-kicker">BEFORE YOU RUN</div>
       <h2 id="context-title">Add business context</h2>
-      <p>Optional. One note per line. Injected into LEGOLAS and GIMLI so they know how this API is used — compliance rules, naming conventions, what must not be shimmed.</p>
-      <textarea id="context-text" rows="6" placeholder="e.g. Identifier.system must stay the primary EHR id&#10;e.g. Do not invent a compatibility field for anything removed"></textarea>
+      <p>Optional. Write how this API is used in the business — compliance, naming, what must not be shimmed. The same text is copied into every LEGOLAS and GIMLI prompt.</p>
+      <textarea id="context-text" rows="6" placeholder="Patients are addressed by given/family in outbound comms. Do not invent a compatibility field for anything the new spec removed."></textarea>
       <div class="overlay-actions">
         <button id="context-skip" class="ghost" type="button">SKIP</button>
         <button id="context-apply" class="primary" type="button">SAVE &amp; CONTINUE</button>

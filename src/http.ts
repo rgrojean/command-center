@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Express, Request, Response } from "express";
 import { assembleBoard, chipsFromDiff, latestRunId, liveEnabled } from "./board-payload.js";
 import { diffOpenApi, resolveV2Path } from "./diff.js";
-import { loadFleet, parseFleet, producerOf } from "./fleet.js";
+import { businessContextProse, loadFleet, parseFleet, producerOf } from "./fleet.js";
 import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.js";
 import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.js";
 import { runPipeline } from "./pipeline.js";
@@ -53,13 +53,13 @@ type InputBody = {
   v2Path?: string;
   v3Path?: string;
   fleetPath?: string;
-  business_context?: string[];
+  business_context?: string | string[];
 };
 
-function normalizeContext(raw: unknown): string[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const items = raw.map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
-  return items;
+function normalizeContext(raw: unknown): string | undefined {
+  if (typeof raw !== "string" && !Array.isArray(raw)) return undefined;
+  const prose = businessContextProse(raw);
+  return prose || undefined;
 }
 
 function writeIfText(dir: string, name: string, text: string | undefined): string | undefined {
@@ -96,7 +96,7 @@ function previewFrom(paths: { v2Path: string; v3Path: string; fleetPath: string 
     producer: { slug: producer.slug, display_name: producer.display_name },
     fleet: {
       org: fleet.org,
-      business_context: fleet.business_context ?? [],
+      business_context: businessContextProse(fleet.business_context),
       repos: fleet.repos.map((r) => ({
         slug: r.slug,
         display_name: r.display_name,
@@ -131,7 +131,7 @@ export function mountHttp(app: Express): void {
     const fleet = loadFleet(FLEET_PATH);
     const body = {
       ...fleet,
-      business_context: fleet.business_context ?? [],
+      business_context: businessContextProse(fleet.business_context),
     };
     res.setHeader("Content-Disposition", 'attachment; filename="fleet.template.json"');
     res.json(body);
@@ -227,7 +227,8 @@ export function mountHttp(app: Express): void {
       v3Path: runPaths.v3Path,
       fleetPath: runPaths.fleetPath,
       businessContext:
-        normalizeContext(body.business_context) ?? loadFleet(runPaths.fleetPath).business_context,
+        normalizeContext(body.business_context) ??
+        businessContextProse(loadFleet(runPaths.fleetPath).business_context),
       httpHold: hold,
       existing,
     })

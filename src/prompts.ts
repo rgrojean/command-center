@@ -21,17 +21,16 @@ function fill(template: string, vars: Record<string, string>): string {
   });
 }
 
-export function formatBusinessContext(lines: string[] | undefined): string {
-  const items = (lines ?? []).map((s) => s.trim()).filter(Boolean);
-  if (items.length === 0) {
+export function formatBusinessContext(prose: string | undefined): string {
+  const text = (prose ?? "").trim();
+  if (!text) {
     return "_No additional business context was provided._";
   }
   return [
     "The operator supplied this context about the producer API and consuming fleet.",
-    "Use it when judging impact, blockers, and required changes.",
-    "It does not replace citations from the repository.",
+    "Use it when judging impact, blockers, and required changes. It does not replace citations from the repository.",
     "",
-    ...items.map((s) => `- ${s}`),
+    text,
   ].join("\n");
 }
 
@@ -40,7 +39,7 @@ export function renderResearchPrompt(
   diffSummary: string,
   changedFields: string[],
   researchSchema: z.ZodType,
-  businessContext?: string[],
+  businessContext?: string,
 ): string {
   return fill(loadTemplate("research"), {
     REPO_NAME: repo,
@@ -68,7 +67,7 @@ export function renderWritePrompt(opts: {
   diffSummary: string;
   v3SpecPath: string;
   retryBudget: number;
-  businessContext?: string[];
+  businessContext?: string;
 }): string {
   return fill(loadTemplate("write"), {
     REPO_NAME: opts.repo,

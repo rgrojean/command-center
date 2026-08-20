@@ -26,6 +26,7 @@ import {
   loadFleet,
   producerOf,
   researchConsumersOf,
+  businessContextProse,
   type Fleet,
   type FleetRepo,
 } from "./fleet.js";
@@ -101,7 +102,7 @@ export type PipelineOptions = {
   v3Path?: string;
   fleetPath?: string;
   /** Injected into LEGOLAS and GIMLI prompts. */
-  businessContext?: string[];
+  businessContext?: string;
   /** HTTP doorway: same pipeline, hold at gate until decisions + release. */
   httpHold?: HttpHold;
   /** Orchestrator creates the run dir first so POST /runs can return runId. */
@@ -798,7 +799,7 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
     v2Path,
     v3Path,
     fleetPath,
-    businessContext: opts.businessContext ?? fleet.business_context,
+    businessContext: opts.businessContext ?? businessContextProse(fleet.business_context),
     researchConcurrency: opts.researchConcurrency ?? fleetResearchConcurrency(fleet),
     writeConcurrency: opts.writeConcurrency ?? fleetWriteConcurrency(fleet),
   };
