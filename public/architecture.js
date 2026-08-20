@@ -17,7 +17,7 @@ const ArchitectureDrawer = (() => {
     ["d20", "guarantee", "D20", "Grade in, model out — agent never names the model", "src/models.ts", "mechanical/contextual/judgment_heavy → config table. HTTP gate can override grade or model."],
     ["d16", "guarantee", "D16 / D4", "Gate reviews English specs between research and write", "src/gate.ts · src/hold.ts", "CLI is y/N. Dashboard hold is approve/reject + optional note/grade/model. Blocked never enters write even if approved."],
     ["d25", "guarantee", "D25 / D8", "Two retry loops, one job each", "src/pipeline.ts", "Inner ≤3 test-fix inside one agent run. Outer: one model-tier climb if writeRunFailed. Schema retry is neither."],
-    ["d32ws", "guarantee", "D32 (ADR)", "Workspace lifecycle is scripts, not prompts", "src/clone.ts", "checkout baseline-v2 + reset --hard + clean -fdx before research and before write."],
+    ["d32ws", "guarantee", "D32 (ADR)", "Workspace lifecycle is scripts, not prompts", "src/clone.ts", "checkout the run's starting SHA, reset --hard, clean -fdx before research and before write."],
     ["d7", "guarantee", "D7 / D5", "Orchestrator owns git/PR; agents never push", "src/pr.ts · src/fake-pr.ts", "PR body assembled from the spec. Never merges. Blocked repos get escalation.json."],
     ["d26", "guarantee", "D26", "One SDK seam; stub is the full pipeline", "src/run-agent.ts", "mode stub loads fixtures/stubs/. Chip is LIVE vs STUB REHEARSAL."],
     ["d33", "guarantee", "D33", "Fan-out is config; degrade in the open", "src/concurrency.ts · fleet.json", "full → pool(2) → sequential. LEGOLAS∥BILBO is not this knob."],
@@ -88,7 +88,7 @@ const ArchitectureDrawer = (() => {
       rail(stage(
         "Inputs + clone map",
         "det",
-        "Two OpenAPI paths plus fleet.json. Live clones the producer at the fleet baseline tag so v2 is the tagged tree, not a drifted working copy. A new consumer is a fleet row, not a pipeline edit.",
+        "Two OpenAPI paths plus fleet.json. Live peels each repo's start_ref (branch, tag, or SHA) to a commit and clones that tree — not a drifted working copy. A new consumer is a fleet row, not a pipeline edit.",
         ["fleet.json", "src/fleet.ts", "src/clone.ts", "specs/pis-openapi-v2.yaml", "specs/pis-openapi-v3.yaml"],
       )),
       rail(stage(
@@ -112,7 +112,7 @@ const ArchitectureDrawer = (() => {
       rail(stage(
         "Restore baseline clone",
         "det",
-        "Per consumer, before research: checkout baseline-v2, reset --hard, clean -fdx. Prompt says do not reconstruct history; this script is the guarantee. Paid for by research that ran against an already-migrated tree.",
+        "Per consumer, before research: checkout the pinned start commit, reset --hard, clean -fdx. Prompt says do not reconstruct history; this script is the guarantee. Paid for by research that ran against an already-migrated tree.",
         ["src/clone.ts"],
       )),
       rail(stage(
@@ -173,7 +173,7 @@ const ArchitectureDrawer = (() => {
       rail(stage(
         "Prepare write workspace",
         "det",
-        "Restore baseline again, branch to migration/spec-v3, drop a copy of the v3 OpenAPI for the agent (unstaged later so it never lands in the PR). Prompt rules are requests; this checkout is the guarantee.",
+        "Restore the pinned start commit again, branch to migration/spec-v3, drop a copy of the v3 OpenAPI for the agent (unstaged later so it never lands in the PR). Prompt rules are requests; this checkout is the guarantee.",
         ["src/clone.ts"],
       )),
       rail(agentCard(

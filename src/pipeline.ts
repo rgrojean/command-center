@@ -5,7 +5,6 @@ import { runReadOnlyAgent, runWriteAgent } from "./agents.js";
 import {
   ensureBilboClone,
   ensureClone,
-  ensureProducerClone,
   inspectResearchWorkspace,
   prepareWriteWorkspace,
   workspaceFor,
@@ -24,12 +23,14 @@ import {
   fleetResearchConcurrency,
   fleetWriteConcurrency,
   loadFleet,
+  pinRef,
   producerOf,
   researchConsumersOf,
   businessContextProse,
   type Fleet,
   type FleetRepo,
 } from "./fleet.js";
+import { pinFleetRepos } from "./github-ref.js";
 import { buildEscalation, buildFakePr } from "./fake-pr.js";
 import { runGate } from "./gate.js";
 import { isPipelineKilled, type HttpDecision, type HttpHold } from "./hold.js";
@@ -182,7 +183,7 @@ async function runValidated<T>(
     mode: opts.mode,
     kind: opts.kind,
     githubUrl: opts.repo.github_url,
-    startingRef: opts.repo.baseline_tag,
+    startingRef: pinRef(opts.repo),
     onEvent: opts.mode === "live" ? liveSink(opts.runDir, opts.repo.slug, opts.stage) : undefined,
     ...agentCtl(opts.httpHold),
   };
@@ -378,7 +379,7 @@ async function executeWrite(
     grade,
     modelOverride,
     githubUrl: repo.github_url,
-    startingRef: repo.baseline_tag,
+    startingRef: pinRef(repo),
     autoCreatePR: opts.mode === "live" && useCloudAgents() && openRealPrs(),
     onEvent: opts.mode === "live" ? liveSink(runDir, repo.slug, "write") : undefined,
     ...agentCtl(opts.httpHold),
@@ -406,7 +407,7 @@ async function executeWrite(
         grade,
         modelOverride: next,
         githubUrl: repo.github_url,
-        startingRef: repo.baseline_tag,
+        startingRef: pinRef(repo),
         autoCreatePR: opts.mode === "live" && useCloudAgents() && openRealPrs(),
         onEvent:
           opts.mode === "live" ? liveSink(runDir, repo.slug, "escalate_write") : undefined,
@@ -785,13 +786,25 @@ async function runHttpHold(
 
 export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
   const fleetPath = opts.fleetPath ?? FLEET_PATH;
-  const fleet = loadFleet(fleetPath);
+  let fleet = loadFleet(fleetPath);
   const created = opts.existing ?? createRun(opts.mode);
   const { runId, dir, manifest } = created;
   manifest.mode = opts.mode;
   manifest.phase = "research";
   writeManifest(dir, manifest);
-  if (opts.mode === "live" && !useCloudAgents()) ensureProducerClone();
+  if (opts.mode === "live") {
+    fleet = { ...fleet, repos: await pinFleetRepos(fleet.repos) };
+    appendRunEvent(dir, {
+      ts: nowIso(),
+      stage: "run",
+      type: "start_pin",
+      message: `start_ref resolved to commit SHA for ${fleet.repos.length} repos`,
+      data: Object.fromEntries(
+        fleet.repos.map((r) => [r.slug, { start_ref: r.start_ref, sha: r.starting_sha }]),
+      ),
+    });
+  }
+  if (opts.mode === "live" && !useCloudAgents()) ensureClone(producerOf(fleet));
   const v3Path = opts.v3Path ?? V3_SPEC_PATH;
   const v2Path = opts.v2Path ?? resolveV2Path(producerOf(fleet).slug, V2_SPEC_PATH);
   const resolved: PipelineOptions = {
@@ -839,6 +852,8 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
     manifest.repos[repo.slug] = {
       slug: repo.slug,
       display_name: repo.display_name,
+      start_ref: repo.start_ref,
+      starting_sha: repo.starting_sha,
       stages: ["diff"],
       research_model: researchModelFor(opts.mode),
       human_impact_model: humanImpactModelFor(opts.mode),

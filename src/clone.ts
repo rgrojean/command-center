@@ -2,7 +2,8 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { FleetRepo } from "./fleet.js";
-import { producer } from "./fleet.js";
+import { pinRef, producer } from "./fleet.js";
+import { isCommitSha } from "./github-ref.js";
 import { V3_SPEC_COPY, WORKSPACES_DIR } from "./paths.js";
 
 export const WRITE_BRANCH = "migration/spec-v3";
@@ -29,37 +30,61 @@ function cloneUrl(repo: FleetRepo): string {
   return repo.github_url.endsWith(".git") ? repo.github_url : `${repo.github_url}.git`;
 }
 
-function checkoutBaseline(dir: string, tag: string): void {
+function cloneAt(url: string, dir: string, ref: string): void {
+  if (isCommitSha(ref)) {
+    mkdirSync(dir, { recursive: true });
+    execFileSync("git", ["init"], { cwd: dir, stdio: "inherit" });
+    git(dir, ["remote", "add", "origin", url]);
+    execFileSync("git", ["fetch", "--depth", "1", "origin", ref], {
+      cwd: dir,
+      stdio: "inherit",
+    });
+    git(dir, ["checkout", "--force", "FETCH_HEAD"]);
+    return;
+  }
+  execFileSync(
+    "git",
+    ["clone", "--branch", ref, "--single-branch", "--depth", "1", url, dir],
+    { stdio: "inherit" },
+  );
+}
+
+function checkoutPin(dir: string, ref: string): void {
   try {
-    git(dir, ["checkout", "-f", tag]);
+    git(dir, ["checkout", "-f", ref]);
   } catch {
-    git(dir, ["checkout", "-f", "-B", tag, `origin/${tag}`]);
+    try {
+      execFileSync("git", ["fetch", "--depth", "1", "origin", ref], {
+        cwd: dir,
+        stdio: "inherit",
+      });
+      git(dir, ["checkout", "-f", isCommitSha(ref) ? "FETCH_HEAD" : ref]);
+    } catch {
+      git(dir, ["checkout", "-f", "-B", ref, `origin/${ref}`]);
+    }
   }
   git(dir, ["reset", "--hard"]);
   git(dir, ["clean", "-fdx"]);
 }
 
 /**
- * Orchestrator-owned baseline (D32). Fresh clone at baseline-v2, or on reuse:
- * checkout baseline-v2, reset --hard, clean -fdx. Agents never reconstruct this.
+ * Orchestrator-owned pin (D32). Fresh clone at start_ref / starting_sha, or on
+ * reuse: checkout that commit, reset --hard, clean -fdx. Agents never reconstruct this.
  */
 export function restoreBaseline(repo: FleetRepo, role: CloneRole = "primary"): string {
   const dir = workspaceFor(repo.slug, role);
+  const ref = pinRef(repo);
   if (!existsSync(join(dir, ".git"))) {
     mkdirSync(WORKSPACES_DIR, { recursive: true });
     const primary = workspaceFor(repo.slug, "primary");
     if (role === "human-impact" && existsSync(join(primary, ".git"))) {
       execFileSync("git", ["clone", "--local", primary, dir], { stdio: "inherit" });
     } else {
-      execFileSync(
-        "git",
-        ["clone", "--branch", repo.baseline_tag, "--single-branch", "--depth", "1", cloneUrl(repo), dir],
-        { stdio: "inherit" },
-      );
+      cloneAt(cloneUrl(repo), dir, ref);
     }
     return dir;
   }
-  checkoutBaseline(dir, repo.baseline_tag);
+  checkoutPin(dir, ref);
   return dir;
 }
 
@@ -106,8 +131,8 @@ export function inspectResearchWorkspace(dir: string): WorkspaceInspect {
 }
 
 /**
- * Restore baseline-v2, branch to migration/spec-v3, and drop a copy of the v3
- * OpenAPI for the write agent (not part of the PR).
+ * Restore the pinned start commit, branch to migration/spec-v3, and drop a copy
+ * of the v3 OpenAPI for the write agent (not part of the PR).
  */
 export function prepareWriteWorkspace(repo: FleetRepo, v3SpecPath: string): string {
   const dir = restoreBaseline(repo);

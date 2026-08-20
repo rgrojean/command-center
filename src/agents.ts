@@ -23,7 +23,7 @@ export type CallSiteOpts = {
 
 /**
  * Call site 1 — research and human-impact share this. Both inspect a clone
- * the orchestrator restored to baseline-v2; they differ only by prompt and
+ * the orchestrator restored to a pinned start commit; they differ only by prompt and
  * the stub fixture `kind`. They may run tests; they must not edit tracked source.
  */
 export function runReadOnlyAgent(

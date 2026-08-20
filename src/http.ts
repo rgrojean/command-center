@@ -96,6 +96,7 @@ function previewFrom(paths: { v2Path: string; v3Path: string; fleetPath: string 
     producer: { slug: producer.slug, display_name: producer.display_name },
     fleet: {
       org: fleet.org,
+      start_ref: fleet.start_ref,
       business_context: businessContextProse(fleet.business_context),
       repos: fleet.repos.map((r) => ({
         slug: r.slug,
@@ -104,6 +105,8 @@ function previewFrom(paths: { v2Path: string; v3Path: string; fleetPath: string 
         role: r.role,
         port: r.port,
         db_port: r.db_port,
+        start_ref: r.start_ref,
+        default_branch: r.default_branch,
       })),
       counts: {
         repos: fleet.repos.length,

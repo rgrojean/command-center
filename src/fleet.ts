@@ -7,23 +7,26 @@ const KindSchema = z.enum(["api", "batch", "web"]);
 const RoleSchema = z.enum(["producer", "consumer"]);
 const ResearchFromSchema = z.enum(["M1", "M4"]);
 
-export const FleetRepoSchema = z.object({
+const RepoInputSchema = z.object({
   slug: z.string().min(1),
   display_name: z.string().min(1),
   github_url: z.string().url(),
   default_branch: z.string().min(1),
-  baseline_tag: z.string().min(1),
+  /** Branch, tag, or commit SHA. Resolved to SHA at live run start. */
+  start_ref: z.string().min(1).optional(),
+  /** @deprecated Use start_ref. Still accepted on uploaded fleets. */
+  baseline_tag: z.string().min(1).optional(),
   kind: KindSchema,
   role: RoleSchema,
   research_from: ResearchFromSchema.optional(),
   port: z.number().int().positive().optional(),
   db_port: z.number().int().positive().optional(),
 });
-export type FleetRepo = z.infer<typeof FleetRepoSchema>;
 
-export const FleetSchema = z.object({
+const FleetInputSchema = z.object({
   org: z.string().min(1),
-  baseline_tag: z.string().min(1),
+  start_ref: z.string().min(1).optional(),
+  baseline_tag: z.string().min(1).optional(),
   producer: z.string().min(1),
   /** Freeform notes copied into every LEGOLAS and GIMLI prompt. Array form is joined. */
   business_context: z.union([z.string(), z.array(z.string())]).optional(),
@@ -31,9 +34,49 @@ export const FleetSchema = z.object({
   research_concurrency: ConcurrencySchema.optional(),
   /** Across approved-repo write agents. Default full. */
   write_concurrency: ConcurrencySchema.optional(),
-  repos: z.array(FleetRepoSchema).min(1),
+  repos: z.array(RepoInputSchema).min(1),
 });
-export type Fleet = z.infer<typeof FleetSchema>;
+
+export type FleetRepo = {
+  slug: string;
+  display_name: string;
+  github_url: string;
+  default_branch: string;
+  start_ref: string;
+  /** Filled on live runs after GitHub resolve. Cloud + local clone use this. */
+  starting_sha?: string;
+  kind: z.infer<typeof KindSchema>;
+  role: z.infer<typeof RoleSchema>;
+  research_from?: z.infer<typeof ResearchFromSchema>;
+  port?: number;
+  db_port?: number;
+};
+
+export type Fleet = {
+  org: string;
+  start_ref?: string;
+  producer: string;
+  business_context?: string | string[];
+  research_concurrency?: Concurrency;
+  write_concurrency?: Concurrency;
+  repos: FleetRepo[];
+};
+
+/** Checkout / cloud startingRef: SHA when pinned, otherwise the declared ref. */
+export function pinRef(repo: FleetRepo): string {
+  return repo.starting_sha ?? repo.start_ref;
+}
+
+function normalizeRepo(
+  repo: z.infer<typeof RepoInputSchema>,
+  fleetRef: string | undefined,
+): FleetRepo {
+  const { baseline_tag: _tag, start_ref, ...rest } = repo;
+  return {
+    ...rest,
+    start_ref: start_ref ?? _tag ?? fleetRef ?? repo.default_branch,
+  };
+}
 
 /** Modal and fleet.json both collapse to one prose block. */
 export function businessContextProse(raw: string | string[] | undefined | null): string {
@@ -51,7 +94,17 @@ export function fleetWriteConcurrency(fleet: Fleet): Concurrency {
 }
 
 export function parseFleet(raw: unknown): Fleet {
-  return FleetSchema.parse(raw);
+  const parsed = FleetInputSchema.parse(raw);
+  const fleetRef = parsed.start_ref ?? parsed.baseline_tag;
+  return {
+    org: parsed.org,
+    start_ref: fleetRef,
+    producer: parsed.producer,
+    business_context: parsed.business_context,
+    research_concurrency: parsed.research_concurrency,
+    write_concurrency: parsed.write_concurrency,
+    repos: parsed.repos.map((repo) => normalizeRepo(repo, fleetRef)),
+  };
 }
 
 export function loadFleet(path: string = FLEET_PATH): Fleet {

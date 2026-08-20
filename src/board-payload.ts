@@ -105,6 +105,8 @@ export type LanePayload = {
   port?: number;
   db_port?: number;
   github_url: string;
+  start_ref?: string;
+  starting_sha?: string;
   verdict?: MigrationSpec["verdict"];
   execution_grade?: MigrationSpec["execution_grade"];
   grade_reasoning?: string;
@@ -324,6 +326,8 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
       port: repo.port,
       db_port: repo.db_port,
       github_url: repo.github_url,
+      start_ref: entry?.start_ref ?? repo.start_ref,
+      starting_sha: entry?.starting_sha,
       verdict: spec?.verdict,
       execution_grade: grade,
       grade_reasoning: spec?.grade_reasoning,

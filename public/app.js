@@ -190,6 +190,8 @@ function kindLabel(type) {
   if (t === "judgment_call") return "JUDGMENT";
   if (t === "schema_retry") return "RETRY";
   if (t === "start") return "START";
+  if (t === "start_pin" || t === "starting_ref") return "PIN";
+  if (t === "pair_failed") return "FAILED";
   if (t === "stub") return "STUB";
   if (t === "reused") return "REUSED";
   return t.toUpperCase().slice(0, 8);
@@ -591,6 +593,9 @@ function renderLane(lane, ctx) {
   const vTone = lane.verdict === "blocked" ? "red" : lane.verdict === "affected" ? "amber" : "slate";
   const repoDot = researchDone ? (lane.verdict === "blocked" ? "red" : "green") : researchOn ? "amber pulse" : "";
   const kindPort = lane.port ? `${lane.kind} · :${lane.port}` : lane.kind;
+  const pin = lane.starting_sha
+    ? lane.starting_sha.slice(0, 7)
+    : lane.start_ref || "";
   const grade = lane.execution_grade;
   const gradeModel = lane.write_model || (grade && ctx.models?.write?.[grade]) || "";
   const gradeHtml = grade
@@ -619,7 +624,7 @@ function renderLane(lane, ctx) {
     <div class="repo-cell">
       <div class="repo-name"><div class="dot ${repoDot}"></div><span>${esc(lane.display_name)}</span></div>
       <span class="meta">${esc(kindPort)}</span>
-      <span class="slug">${esc(lane.slug)}</span>
+      <span class="slug">${esc(lane.slug)}${pin ? ` · ${esc(pin)}` : ""}</span>
     </div>
     <div class="edge"><div class="${edgeClass(researchEdge)}" style="${edgeStyle(researchEdge, researchOn ? "#e0a437" : "#58c98a")}"></div></div>
     <div class="research-cell">

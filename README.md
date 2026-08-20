@@ -25,7 +25,7 @@ Import that repo in Vercel ([Deploy](https://vercel.com/new/clone?repository-url
 | `CURSOR_API_KEY` | your Cursor user key (Dashboard → Integrations) |
 | `APP_PASSWORD` | `rcgcursordemo` |
 | `OPEN_REAL_PRS` | `false` |
-| `GITHUB_TOKEN` | optional; needed to resolve `baseline_tag` on private fleet repos |
+| `GITHUB_TOKEN` | optional; needed to resolve `start_ref` on private fleet repos |
 
 Anonymous/temporary Vercel deploys only ship `public/` static files. A logged-in Git import is required so Express (the pipeline) is built as a function. On Vercel, LIVE agents run in Cursor cloud (no local executor).
 
@@ -55,7 +55,7 @@ npm run pipeline -- --live --yes
 |---|---|
 | Current spec (v2) | OpenAPI 3 YAML or JSON |
 | New spec (v3) | Breaking successor. `x-replaces` on a new property names its predecessor. |
-| `fleet.json` | Producer + consumers, GitHub URLs, baseline tags |
+| `fleet.json` | Producer + consumers, GitHub URLs, `start_ref` (branch, tag, or SHA) |
 
 Defaults ship in `specs/` and `fleet.json`. The dashboard can upload replacements, or download the sample fleet as a template.
 
@@ -74,7 +74,7 @@ A string array is still accepted and joined into one block. That text is copied 
 ```json
 {
   "org": "your-github-org",
-  "baseline_tag": "baseline-v2",
+  "start_ref": "main",
   "producer": "producer_slug",
   "business_context": "",
   "research_concurrency": "full",
@@ -85,7 +85,6 @@ A string array is still accepted and joined into one block. That text is copied 
       "display_name": "Producer API",
       "github_url": "https://github.com/org/producer",
       "default_branch": "main",
-      "baseline_tag": "baseline-v2",
       "kind": "api",
       "role": "producer"
     },
@@ -94,7 +93,6 @@ A string array is still accepted and joined into one block. That text is copied 
       "display_name": "Consumer",
       "github_url": "https://github.com/org/consumer",
       "default_branch": "main",
-      "baseline_tag": "baseline-v2",
       "kind": "api",
       "role": "consumer"
     }
@@ -102,7 +100,7 @@ A string array is still accepted and joined into one block. That text is copied 
 }
 ```
 
-Live agents start from `baseline_tag`. Local clones accept a tag (`git clone --branch`). Cursor cloud agents only accept a **branch name or commit SHA**, so tags are resolved to SHAs via the GitHub API before a cloud agent starts. Private fleet repos need `GITHUB_TOKEN`.
+`start_ref` is a branch, tag, or commit SHA (fleet-wide, overridable per repo). Omit it to use `default_branch`. At live run start the orchestrator peels each ref to a commit SHA, stores it on the run, and clones / starts cloud agents from that SHA. The sample fleet pins `baseline-v2` so the demo can reset; a production fleet would typically omit `start_ref` or point at the currently deployed commit. `baseline_tag` is still accepted as an alias. Private repos need `GITHUB_TOKEN`.
 
 Set `OPEN_REAL_PRS=true` only if write agents should push GitHub PRs. The hosted demo leaves this off.
 

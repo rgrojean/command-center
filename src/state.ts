@@ -27,6 +27,8 @@ export type GateDecisionRecord = {
 export type RepoManifest = {
   slug: string;
   display_name: string;
+  start_ref?: string;
+  starting_sha?: string;
   stages: PipelineStage[];
   gate?: "approved" | "rejected" | "skipped";
   gate_note?: string;

@@ -1,3 +1,5 @@
+import type { FleetRepo } from "./fleet.js";
+
 const SHA_RE = /^[0-9a-f]{40}$/i;
 const cache = new Map<string, string>();
 
@@ -28,9 +30,8 @@ function githubToken(): string | undefined {
 }
 
 /**
- * Cloud agents accept a branch name or commit SHA, not a tag.
- * Local `git clone --branch` does accept tags, so fleet.json stores `baseline_tag`.
- * Resolve that ref to a SHA via the GitHub commits API (tags, branches, SHAs).
+ * Resolve a branch, tag, or SHA to a commit via the GitHub commits API.
+ * Cloud agents only accept a branch name or SHA; tags must be peeled first.
  */
 export async function resolveCommitSha(githubUrl: string, ref: string): Promise<string> {
   const trimmed = ref.trim();
@@ -59,7 +60,7 @@ export async function resolveCommitSha(githubUrl: string, ref: string): Promise<
     const privateHint = token ? "" : " If the repo is private, set GITHUB_TOKEN.";
     const tagHint =
       res.status === 404
-        ? ` Cloud agents need a branch or commit SHA, not a tag. Could not resolve '${trimmed}' in ${owner}/${repo}.${privateHint}`
+        ? ` Could not resolve start_ref '${trimmed}' in ${owner}/${repo} to a commit SHA.${privateHint}`
         : "";
     throw new Error(
       `GitHub ${res.status} resolving ${owner}/${repo}@${trimmed}.${tagHint} ${body}`.trim(),
@@ -82,4 +83,14 @@ export async function cloudStartingRef(
   if (!ref) return undefined;
   if (!githubUrl) return ref;
   return resolveCommitSha(githubUrl, ref);
+}
+
+/** Peel each repo's start_ref to a commit SHA. Live runs only. */
+export async function pinFleetRepos(repos: FleetRepo[]): Promise<FleetRepo[]> {
+  return Promise.all(
+    repos.map(async (repo) => ({
+      ...repo,
+      starting_sha: await resolveCommitSha(repo.github_url, repo.start_ref),
+    })),
+  );
 }
