@@ -176,6 +176,8 @@ function lastTick(events, idle) {
 }
 
 function lastTickHtml(lane, stage, events, idle) {
+  const fail = [...events].reverse().find((e) => String(e.type || "").toLowerCase() === "agent_failed");
+  if (fail) return esc(lastTick([fail], idle));
   if (!events.length) return esc(idle);
   if (assistantJson(events)) {
     return `result · <button class="json-link" type="button" data-json-slug="${esc(lane.slug)}" data-json-stage="${esc(stage)}" data-json-idx="all">json result</button>`;
@@ -192,7 +194,7 @@ function kindLabel(type) {
   if (t === "schema_retry") return "RETRY";
   if (t === "start") return "START";
   if (t === "start_pin" || t === "starting_ref") return "PIN";
-  if (t === "pair_failed") return "FAILED";
+  if (t === "pair_failed" || t === "agent_failed") return "FAILED";
   if (t === "stub") return "STUB";
   if (t === "reused") return "REUSED";
   return t.toUpperCase().slice(0, 8);
@@ -280,16 +282,22 @@ function noneItem(label) {
 function agentState(lane, stage, phase) {
   const events = agentEvents(lane, stage);
   const hasSpec = !!lane.spec;
+  const failedEvt = events.some((e) => String(e.type || "").toLowerCase() === "agent_failed");
   const writing = (lane.stages || []).includes("write") || (lane.stages || []).includes("fake_pr") || (lane.stages || []).includes("pr");
   if (stage === "write") {
     if (lane.terminal && writing) return "done";
-    if (phase === "write" && lane.gate === "approved" && !lane.terminal) return events.length ? "running" : "queued";
+    if (lane.gate === "approved" && lane.verdict === "affected" && !lane.terminal) {
+      return events.length ? "running" : "queued";
+    }
     if (writing && !lane.terminal) return "running";
     return "idle";
   }
+  if (failedEvt) return "failed";
   if (hasSpec) return "done";
-  if (events.length && (phase === "research" || phase === "gate")) return "running";
-  if (phase === "research") return events.length ? "running" : "queued";
+  if (assistantJson(events)) return "done";
+  if (lane.terminal === "failed" && !hasSpec) return "failed";
+  if (events.length && !lane.terminal) return "running";
+  if (!lane.spec && !lane.terminal) return events.length ? "running" : "queued";
   return "idle";
 }
 
@@ -488,12 +496,19 @@ function renderAgent(lane, callsign, stage, model) {
   const expanded = !!(state.allStreams || state.openStreams[key]) && st !== "idle";
   const running = st === "running";
   const done = st === "done";
-  const color = running ? "amber pulse" : done ? "green" : "";
-  const box = running ? "agent run" : done ? "agent done" : "agent";
-  const tickColor = running ? "amber" : st === "idle" ? "muted" : "";
-  const meta = running ? "live" : done ? "done" : "queued";
+  const failed = st === "failed";
+  const color = running ? "amber pulse" : done ? "green" : failed ? "red" : "";
+  const box = running ? "agent run" : done ? "agent done" : failed ? "agent fail" : "agent";
+  const tickColor = running ? "amber" : failed ? "red" : st === "idle" ? "muted" : "";
+  const meta = running ? "live" : done ? "done" : failed ? "failed" : "queued";
   const idleTick =
-    st === "done" ? "done" : stage === "write" ? "waiting for release" : "waiting for fan-out";
+    st === "done"
+      ? "done"
+      : st === "failed"
+        ? lane.research_error || "failed"
+        : stage === "write"
+          ? "waiting for approval"
+          : "waiting for fan-out";
   let jsonLinked = false;
   const streamRows = [];
   events.forEach((e, i) => {
@@ -518,7 +533,7 @@ function renderAgent(lane, callsign, stage, model) {
     const kind = kindLabel(e.type);
     const json = jsonPayload(e.message);
     const kclass =
-      kind === "KILL"
+      kind === "KILL" || kind === "FAILED"
         ? "KILL"
         : kind === "RESULT" || (kind === "STUB" && done)
           ? "DONE"
@@ -551,7 +566,7 @@ function renderAgent(lane, callsign, stage, model) {
       <div class="dot ${color}"></div>
       <span class="callsign">${esc(callsign)}</span>
       <span class="model model-id" title="${esc(model || "—")}">${esc(model || "—")}</span>
-      <span class="model meta-state ${running ? "amber" : ""}">${meta}</span>
+      <span class="model meta-state ${running ? "amber" : failed ? "red" : ""}">${meta}</span>
       <span class="caret">${expanded ? "▾" : "▸"}</span>
     </button>
     ${sub}
@@ -560,6 +575,9 @@ function renderAgent(lane, callsign, stage, model) {
 }
 
 function decisionLabel(lane, holding) {
+  if (lane.terminal === "failed" && !lane.spec) {
+    return { text: "RESEARCH FAILED", cls: "decision", color: "#eb8d83" };
+  }
   if (!lane.spec) return null;
   if (holding && lane.needs_decision) return null;
   if (lane.verdict === "unaffected") {
@@ -567,12 +585,21 @@ function decisionLabel(lane, holding) {
     return { text: "AUTO-PASS · NO WRITE", cls: "decision", color: "#8b959b" };
   }
   if (lane.verdict === "blocked") return { text: "YOU SHALL NOT PASS", cls: "decision", color: "#eb8d83" };
-  if (lane.gate === "approved") return { text: holding ? "APPROVED · QUEUED" : "APPROVED", cls: "decision", color: "#58c98a" };
+  if (lane.gate === "approved") {
+    const queued =
+      lane.verdict === "affected" &&
+      !lane.terminal &&
+      !(lane.stages || []).includes("write") &&
+      !(lane.stages || []).includes("fake_pr") &&
+      !(lane.stages || []).includes("pr");
+    return { text: queued ? "APPROVED · QUEUED" : "APPROVED", cls: "decision", color: "#58c98a" };
+  }
   if (lane.gate === "rejected") return { text: "REJECTED", cls: "decision", color: "#eb8d83" };
   return null;
 }
 
 function noWriteLabel(lane, phase) {
+  if (lane.terminal === "failed" && !lane.spec) return "no write · research failed";
   if (lane.verdict === "blocked") return "no write · escalation";
   if (lane.verdict === "unaffected") return "nothing to migrate";
   if (lane.gate === "rejected") return "write cancelled";
@@ -581,18 +608,27 @@ function noWriteLabel(lane, phase) {
 }
 
 function renderLane(lane, ctx) {
-  const { phase, holding, released } = ctx;
+  const { phase, holding, controlling } = ctx;
   const researchOn = agentState(lane, "research", phase) === "running" || agentState(lane, "human_impact", phase) === "running";
+  const researchFailed = lane.terminal === "failed" && !lane.spec;
   const researchDone = !!lane.spec;
   const writeSt = agentState(lane, "write", phase);
   const writeOn = writeSt === "running";
   const terminal = lane.terminal;
   const decided = decisionLabel(lane, holding);
-  const decidable = holding && lane.needs_decision;
+  const decidable = !!(controlling && lane.needs_decision);
   const gandalf = lane.gandalf === "HELD" ? "GANDALF · HELD" : lane.gandalf === "PASS" ? "GANDALF · PASS" : "";
   const verdict = lane.verdict ? lane.verdict.toUpperCase() : "";
   const vTone = lane.verdict === "blocked" ? "red" : lane.verdict === "affected" ? "amber" : "slate";
-  const repoDot = researchDone ? (lane.verdict === "blocked" ? "red" : "green") : researchOn ? "amber pulse" : "";
+  const repoDot = researchFailed
+    ? "red"
+    : researchDone
+      ? lane.verdict === "blocked"
+        ? "red"
+        : "green"
+      : researchOn
+        ? "amber pulse"
+        : "";
   const kindPort = lane.port ? `${lane.kind} · :${lane.port}` : lane.kind;
   const pin = lane.starting_sha
     ? lane.starting_sha.slice(0, 7)
@@ -602,10 +638,10 @@ function renderLane(lane, ctx) {
   const gradeHtml = grade
     ? `<div class="grade-line"><span>${esc(grade)}</span><span class="muted">→ ${esc(gradeModel || "—")}</span></div>`
     : "";
-  const hasGimli = released && lane.gate === "approved" && lane.verdict === "affected";
-  const stubMode = researchOn ? "flow" : researchDone || phase !== "research" ? "full" : "dry";
-  const researchEdge = researchOn ? "flow" : researchDone ? "full" : "dry";
-  const gateEdge = researchDone && holding && lane.needs_decision ? "flow" : researchDone ? "full" : "dry";
+  const hasGimli = lane.gate === "approved" && lane.verdict === "affected";
+  const stubMode = researchOn ? "flow" : researchDone || researchFailed || phase !== "research" ? "full" : "dry";
+  const researchEdge = researchOn ? "flow" : researchDone || researchFailed ? "full" : "dry";
+  const gateEdge = researchDone && decidable ? "flow" : researchDone || researchFailed ? "full" : "dry";
   const writeEdge = writeOn ? "flow" : writeSt === "done" || terminal ? "full" : "dry";
   const outEdge = terminal ? "full" : "dry";
   const outColor = lane.verdict === "blocked" || terminal === "failed" ? "#e05a4f" : "#58c98a";
@@ -632,8 +668,8 @@ function renderLane(lane, ctx) {
       ${renderAgent(lane, "LEGOLAS", "research", lane.research_model)}
       ${renderAgent(lane, "BILBO", "human_impact", lane.human_impact_model)}
     </div>
-    <div class="edge"><div class="${edgeClass(gateEdge)}" style="${edgeStyle(gateEdge, lane.needs_decision ? "#e0a437" : "#58c98a")}"></div></div>
-    <div class="gate-cell ${holding ? "hold" : ""}">
+    <div class="edge"><div class="${edgeClass(gateEdge)}" style="${edgeStyle(gateEdge, lane.needs_decision ? "#e0a437" : researchFailed ? "#e05a4f" : "#58c98a")}"></div></div>
+    <div class="gate-cell ${decidable ? "hold" : ""}">
       ${
         researchDone
           ? `<div class="gate-stack">
@@ -655,7 +691,12 @@ function renderLane(lane, ctx) {
                     : ""
               }
             </div>`
-          : `<div class="muted">awaiting research</div>`
+          : researchFailed
+            ? `<div class="gate-stack">
+                <div class="decision" style="color:#eb8d83">RESEARCH FAILED</div>
+                <div class="muted">${esc(lane.research_error || "agent pair failed")}</div>
+              </div>`
+            : `<div class="muted">awaiting research</div>`
       }
     </div>
     <div class="edge"><div class="${edgeClass(writeEdge)}" style="${edgeStyle(writeEdge, writeOn ? "#e0a437" : "#58c98a")}"></div></div>
@@ -687,8 +728,9 @@ function idleLanesFromPreview() {
 }
 
 function phaseLabel(phase, holding) {
+  if (holding) return "GATE · HOLDING";
   if (!phase || phase === "research") return "RESEARCH";
-  if (phase === "gate") return holding ? "GATE · HOLDING" : "GATE";
+  if (phase === "gate") return "GATE";
   if (phase === "write") return "WRITE";
   if (phase === "done") return "REPORT";
   if (phase === "failed") return "FAILED";
@@ -712,8 +754,9 @@ function writeHeadSub(board) {
 }
 
 function progressFor(phase, holding) {
+  if (holding) return { pct: 48, hold: true };
   if (phase === "research") return { pct: 18, hold: false };
-  if (phase === "gate") return { pct: 48, hold: holding };
+  if (phase === "gate") return { pct: 48, hold: false };
   if (phase === "write") return { pct: 78, hold: false };
   if (phase === "done") return { pct: 100, hold: false };
   return { pct: 0, hold: false };
@@ -724,11 +767,19 @@ function renderBoard() {
   const preview = state.preview;
   const phase = board?.phase || "idle";
   const holding = !!board?.holding;
-  const released = phase === "write" || phase === "done";
   const chips = board?.chips?.length ? board.chips : preview?.chips || [];
   const producer = board?.producer || preview?.producer || {};
   const counts = board?.fleet_count || preview?.fleet?.counts || {};
   const lanes = board?.lanes?.length ? board.lanes : idleLanesFromPreview();
+  const writing =
+    phase === "write" ||
+    phase === "done" ||
+    lanes.some((l) => l.gate === "approved" && l.verdict === "affected");
+  const gating =
+    holding ||
+    phase === "gate" ||
+    writing ||
+    lanes.some((l) => l.spec || l.needs_decision || (l.terminal === "failed" && !l.spec));
   const live = (board?.mode || state.mode) === "live";
   setModeChip(live ? "live" : "stub");
   setHeader({
@@ -740,9 +791,9 @@ function renderBoard() {
 
   const colOn = {
     FLEET: phase !== "idle",
-    RESEARCH: phase === "research" || phase === "gate" || released,
-    GATE: phase === "gate" || released,
-    WRITE: released,
+    RESEARCH: phase === "research" || phase === "gate" || writing,
+    GATE: gating,
+    WRITE: writing,
     REPORT: phase === "done",
   };
   const heads = [
@@ -762,7 +813,12 @@ function renderBoard() {
     })
     .join("");
 
-  const ctx = { phase: phase === "idle" ? "research" : phase, holding, released, models: board?.models };
+  const ctx = {
+    phase: phase === "idle" ? "research" : phase,
+    holding,
+    controlling: !!board?.controlling,
+    models: board?.models,
+  };
   const laneHtml = lanes.map((l) => renderLane(l, ctx)).join("");
   $("canvas").innerHTML = `
     <div class="diff-panel">
@@ -789,8 +845,8 @@ function renderBoard() {
   const reached = {
     DIFF: true,
     RESEARCH: phase !== "idle",
-    GATE: phase === "gate" || released,
-    WRITE: released,
+    GATE: gating,
+    WRITE: writing,
     REPORT: phase === "done",
   };
   $("marks").innerHTML = marks
@@ -811,7 +867,7 @@ function renderBoard() {
   if (holding) {
     runBtn.textContent = "HELD AT GATE";
     runBtn.disabled = true;
-  } else if (phase === "write") {
+  } else if (writing) {
     runBtn.textContent = "WRITING";
     runBtn.disabled = true;
   } else if (phase === "done") {
@@ -829,10 +885,10 @@ function renderBoard() {
   const canKill = !!board?.controlling && phase !== "done" && phase !== "failed";
   killBtn.disabled = !canKill || state.killing;
 
-  if (holding) $("hint").textContent = "decide every spec to release";
+  if (holding) $("hint").textContent = "approve a repo to start its write — others can still be researching";
   else if (phase === "failed") $("hint").textContent = killed ? "killed · agents cancelled" : board?.error || "run failed";
   else if (phase === "done") $("hint").textContent = "run complete";
-  else if (phase === "write") $("hint").textContent = "GIMLI executing approved specs";
+  else if (writing) $("hint").textContent = "GIMLI executing approved specs";
   else if (state.view === "board" && !state.runId) $("hint").textContent = "fleet loaded · click RUN";
   else $("hint").textContent = "streams collapsed · click a callsign";
 
@@ -933,17 +989,6 @@ async function pollOnce() {
   const board = await api(`/api/runs/${state.runId}`);
   state.pollMisses = 0;
   state.board = board;
-  if (board.can_release && !state.releasing) {
-    state.releasing = true;
-    try {
-      await api(`/api/runs/${state.runId}/release`, { method: "POST", body: "{}" });
-    } catch {
-      /* already released or aborted */
-    } finally {
-      state.releasing = false;
-    }
-    state.board = await api(`/api/runs/${state.runId}`);
-  }
   renderBoard();
   if (board.phase === "done" || board.phase === "failed") stopPoll();
 }
@@ -1111,7 +1156,7 @@ function showCoach(step) {
       ? "Check LIVE to kick off a live Cursor SDK call, spinning up agents per repo. Leave it off for a stub rehearsal with no SDK calls."
       : step === "arch"
         ? "Run takes about 5 minutes. Review the design and decisions behind the tool."
-        : "RUN starts research across every consumer. The gate holds until you approve or reject each spec.";
+        : "RUN starts research across every consumer. Approve a repo as soon as its spec is ready — write starts immediately, even if other lanes are still researching.";
   $("coach").classList.remove("hidden");
   $("coach").setAttribute("aria-hidden", "false");
   bindCoachTracking(true);

@@ -12,6 +12,7 @@ import {
 import { diffOpenApi, resolveV2Path } from "./diff.js";
 import {
   applyDegrade,
+  createLimiter,
   initialFanout,
   isCapacityError,
   labelConcurrency,
@@ -51,6 +52,7 @@ import {
   renderWritePrompt,
 } from "./prompts.js";
 import type { AgentMode, RunAgentResult } from "./run-agent.js";
+import { describeAgentFailure } from "./json-extract.js";
 import { HumanImpactSchema } from "./human-impact-schema.js";
 import {
   migrationSpecSchemaFor,
@@ -104,7 +106,7 @@ export type PipelineOptions = {
   fleetPath?: string;
   /** Injected into LEGOLAS and GIMLI prompts. */
   businessContext?: string;
-  /** HTTP doorway: same pipeline, hold at gate until decisions + release. */
+  /** HTTP doorway: per-repo gate; approved writes start without a batch release. */
   httpHold?: HttpHold;
   /** Orchestrator creates the run dir first so POST /runs can return runId. */
   existing?: { runId: string; dir: string; manifest: RunManifest };
@@ -251,34 +253,72 @@ async function researchPair(
   const humanPrompt = renderHumanImpactPrompt(repo.slug, diffSummary);
   writePrompt(runDir, repo.slug, "research", researchPrompt);
   writePrompt(runDir, repo.slug, "human_impact", humanPrompt);
-  const [research, human] = await Promise.all([
-    runValidated(
-      {
-        repo,
-        workspace,
-        prompt: researchPrompt,
-        mode: opts.mode,
-        kind: "research",
-        runDir,
-        stage: "research",
-        httpHold: opts.httpHold,
-      },
-      schemas.research,
-    ),
-    runValidated(
-      {
-        repo,
-        workspace: humanWorkspace,
-        prompt: humanPrompt,
-        mode: opts.mode,
-        kind: "human-impact",
-        runDir,
-        stage: "human_impact",
-        httpHold: opts.httpHold,
-      },
-      HumanImpactSchema,
-    ),
-  ]);
+  const researchAttempt = runValidated(
+    {
+      repo,
+      workspace,
+      prompt: researchPrompt,
+      mode: opts.mode,
+      kind: "research",
+      runDir,
+      stage: "research",
+      httpHold: opts.httpHold,
+    },
+    schemas.research,
+  ).catch((err: unknown) => {
+    appendEvent(runDir, {
+      ts: nowIso(),
+      repo: repo.slug,
+      stage: "research",
+      type: "agent_failed",
+      message: describeAgentFailure(err),
+      data: { error: err instanceof Error ? err.message : String(err) },
+    });
+    throw err;
+  });
+  const humanAttempt = runValidated(
+    {
+      repo,
+      workspace: humanWorkspace,
+      prompt: humanPrompt,
+      mode: opts.mode,
+      kind: "human-impact",
+      runDir,
+      stage: "human_impact",
+      httpHold: opts.httpHold,
+    },
+    HumanImpactSchema,
+  ).catch((err: unknown) => {
+    appendEvent(runDir, {
+      ts: nowIso(),
+      repo: repo.slug,
+      stage: "human_impact",
+      type: "agent_failed",
+      message: describeAgentFailure(err),
+      data: { error: err instanceof Error ? err.message : String(err) },
+    });
+    throw err;
+  });
+  const [researchOutcome, humanOutcome] = await Promise.allSettled([researchAttempt, humanAttempt]);
+  if (researchOutcome.status === "rejected" || humanOutcome.status === "rejected") {
+    const reasons = [researchOutcome, humanOutcome]
+      .filter((o): o is PromiseRejectedResult => o.status === "rejected")
+      .map((o) => o.reason);
+    const capacity = reasons.find(isCapacityError);
+    if (capacity) throw capacity;
+    const killed = reasons.find(isPipelineKilled);
+    if (killed) throw killed;
+    const parts: string[] = [];
+    if (researchOutcome.status === "rejected") {
+      parts.push(`LEGOLAS: ${describeAgentFailure(researchOutcome.reason)}`);
+    }
+    if (humanOutcome.status === "rejected") {
+      parts.push(`BILBO: ${describeAgentFailure(humanOutcome.reason)}`);
+    }
+    throw new Error(parts.join("; "));
+  }
+  const research = researchOutcome.value;
+  const human = humanOutcome.value;
 
   let hygiene: WorkspaceHygiene | undefined;
   if (opts.mode === "live" && !cloud) {
@@ -555,24 +595,19 @@ function markResearchFailed(
   err: unknown,
 ): void {
   const message = err instanceof Error ? err.message : String(err);
-  appendEvent(runDir, {
-    ts: nowIso(),
-    repo: repo.slug,
-    stage: "research",
-    type: "pair_failed",
-    message,
-  });
+  const short = describeAgentFailure(err);
   appendRunEvent(runDir, {
     ts: nowIso(),
     stage: "run",
     type: "repo_isolated",
-    message: `${repo.slug} research pair failed; other repos continue: ${message}`,
+    message: `${repo.slug} research pair failed; other repos continue: ${short}`,
     data: { slug: repo.slug, error: message },
   });
   const entry = manifest.repos[repo.slug];
   if (entry) {
     entry.terminal = "failed";
     entry.gate = "skipped";
+    entry.research_error = short;
   }
   notify({ runId, repo: repo.slug, from: "research", to: "failed", at: nowIso() });
   writeManifest(runDir, manifest);
@@ -696,91 +731,52 @@ async function fanoutWrites(
   writeManifest(runDir, manifest);
 }
 
-async function runHttpHold(
+async function settleHttpRepo(
   runId: string,
   runDir: string,
-  selected: FleetRepo[],
-  specs: Map<string, MigrationSpec>,
+  repo: FleetRepo,
+  spec: MigrationSpec,
   diffSummary: string,
-  resolved: PipelineOptions,
+  opts: PipelineOptions,
   manifest: RunManifest,
   hold: HttpHold,
+  writeLimiter: { run<T>(fn: () => Promise<T>): Promise<T> },
 ): Promise<void> {
-  manifest.phase = "gate";
+  if (spec.verdict === "blocked") {
+    finalizeBlocked(runId, runDir, repo, spec, manifest, "skipped");
+    writeJson(runDir, repo.slug, "decision.json", { decision: "skipped", at: nowIso() });
+    return;
+  }
+  if (spec.verdict === "unaffected" && !needsHumanDecision(spec)) {
+    finalizeUnaffected(runId, runDir, repo, manifest, "skipped");
+    writeJson(runDir, repo.slug, "decision.json", { decision: "skipped", at: nowIso() });
+    return;
+  }
+
+  const decision = await hold.waitForDecision(repo.slug);
+  const entry = manifest.repos[repo.slug]!;
+  entry.gate = decision.decision;
+  if (decision.note) entry.gate_note = decision.note;
+  if (decision.grade_override) entry.grade_override = decision.grade_override;
+  if (decision.model_override) entry.model_override = decision.model_override;
+  touchStage(manifest, repo.slug, "gate");
+  const next = applyDecisionToSpec(spec, decision);
+  writeJson(runDir, repo.slug, "spec.json", next);
   writeManifest(runDir, manifest);
 
-  const pending: FleetRepo[] = [];
-  for (const repo of selected) {
-    const spec = specs.get(repo.slug);
-    if (!spec) continue;
-    if (spec.verdict === "blocked") {
-      finalizeBlocked(runId, runDir, repo, spec, manifest, "skipped");
-      writeJson(runDir, repo.slug, "decision.json", {
-        decision: "skipped",
-        at: nowIso(),
-      });
-      continue;
-    }
-    if (spec.verdict === "unaffected" && !needsHumanDecision(spec)) {
-      finalizeUnaffected(runId, runDir, repo, manifest, "skipped");
-      writeJson(runDir, repo.slug, "decision.json", {
-        decision: "skipped",
-        at: nowIso(),
-      });
-      continue;
-    }
-    pending.push(repo);
+  if (decision.decision !== "approved") {
+    if (next.verdict === "affected") finalizeRejected(runId, runDir, repo, next, manifest);
+    else finalizeUnaffected(runId, runDir, repo, manifest, "rejected");
+    return;
   }
-
-  const recorded = new Map<string, HttpDecision>();
-  await Promise.all(
-    pending.map(async (repo) => {
-      const decision = await hold.waitForDecision(repo.slug);
-      recorded.set(repo.slug, decision);
-      const entry = manifest.repos[repo.slug]!;
-      entry.gate = decision.decision;
-      if (decision.note) entry.gate_note = decision.note;
-      if (decision.grade_override) entry.grade_override = decision.grade_override;
-      if (decision.model_override) entry.model_override = decision.model_override;
-      touchStage(manifest, repo.slug, "gate");
-      const next = applyDecisionToSpec(specs.get(repo.slug)!, decision);
-      specs.set(repo.slug, next);
-      writeJson(runDir, repo.slug, "spec.json", next);
-      writeManifest(runDir, manifest);
-    }),
-  );
-
-  await hold.waitForRelease();
-  manifest.phase = "write";
-  writeManifest(runDir, manifest);
-
-  const approved = pending.filter((r) => recorded.get(r.slug)?.decision === "approved");
-  const rejected = pending.filter((r) => recorded.get(r.slug)?.decision === "rejected");
-  for (const repo of rejected) {
-    const spec = specs.get(repo.slug)!;
-    if (spec.verdict === "affected") {
-      finalizeRejected(runId, runDir, repo, spec, manifest);
-    } else {
-      finalizeUnaffected(runId, runDir, repo, manifest, "rejected");
-    }
+  if (next.verdict === "unaffected") {
+    finalizeUnaffected(runId, runDir, repo, manifest, "approved");
+    return;
   }
+  if (opts.until === "gate") return;
 
-  const toWrite = approved.filter((r) => specs.get(r.slug)?.verdict === "affected");
-  for (const repo of approved) {
-    if (specs.get(repo.slug)?.verdict === "unaffected") {
-      finalizeUnaffected(runId, runDir, repo, manifest, "approved");
-    }
-  }
-
-  await fanoutWrites(
-    runId,
-    runDir,
-    toWrite,
-    specs,
-    diffSummary,
-    resolved,
-    manifest,
-    (slug) => recorded.get(slug)?.model_override,
+  await writeLimiter.run(() =>
+    writeLane(runId, runDir, repo, next, diffSummary, opts, manifest, decision.model_override),
   );
 }
 
@@ -889,6 +885,28 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
     },
   });
   const researchStarted = Date.now();
+  const writeLimiter = createLimiter(resolved.writeConcurrency ?? "full");
+  const settlements: Promise<void>[] = [];
+  const enqueueSettle = (repo: FleetRepo, spec: MigrationSpec) => {
+    if (!opts.httpHold) return;
+    settlements.push(
+      settleHttpRepo(
+        runId,
+        dir,
+        repo,
+        spec,
+        diff.summary,
+        resolved,
+        manifest,
+        opts.httpHold,
+        writeLimiter,
+      ),
+    );
+  };
+  for (const repo of selected) {
+    const spec = specs.get(repo.slug);
+    if (spec && !shouldResearch(repo.slug)) enqueueSettle(repo, spec);
+  }
   await mapFanout(
     toResearch,
     researchConcurrency,
@@ -896,6 +914,7 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
       try {
         const spec = await researchPair(repo, diff.summary, resolved, dir, manifest, schemas);
         specs.set(repo.slug, spec);
+        enqueueSettle(repo, spec);
       } catch (err) {
         if (isCapacityError(err) || isPipelineKilled(err)) throw err;
         markResearchFailed(runId, dir, repo, manifest, err);
@@ -908,16 +927,10 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
 
   if (opts.httpHold) {
     try {
-      await runHttpHold(
-        runId,
-        dir,
-        selected,
-        specs,
-        diff.summary,
-        resolved,
-        manifest,
-        opts.httpHold,
-      );
+      const writeStarted = Date.now();
+      await Promise.all(settlements);
+      manifest.timings = { ...manifest.timings, write_ms: Date.now() - writeStarted };
+      writeManifest(dir, manifest);
     } catch (err) {
       manifest.phase = "failed";
       manifest.error = err instanceof Error ? err.message : String(err);

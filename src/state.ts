@@ -38,6 +38,7 @@ export type RepoManifest = {
   model_used?: string;
   research_model?: string;
   human_impact_model?: string;
+  research_error?: string;
   escalated?: boolean;
   pr_url?: string;
 };
@@ -159,15 +160,17 @@ export function listRunIds(): string[] {
 }
 
 export function inferPhase(manifest: RunManifest): RunPhase {
-  if (manifest.phase) return manifest.phase;
-  if (manifest.finishedAt) return "done";
+  if (manifest.phase === "failed") return "failed";
+  if (manifest.finishedAt || manifest.phase === "done") return "done";
   const repos = Object.values(manifest.repos);
   if (repos.length === 0) return "research";
   if (repos.every((r) => r.terminal)) return "done";
   if (repos.some((r) => r.stages.includes("write") || r.stages.includes("pr") || r.stages.includes("fake_pr"))) {
     return "write";
   }
-  if (repos.some((r) => r.stages.includes("validate") || r.stages.includes("gate"))) return "gate";
+  if (repos.some((r) => r.stages.includes("validate") || r.stages.includes("gate") || r.gate)) {
+    return "gate";
+  }
   return "research";
 }
 

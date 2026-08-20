@@ -73,6 +73,31 @@ export function isCapacityError(err: unknown): boolean {
   );
 }
 
+/** Streaming write slots so one approved repo can start while others still research. */
+export function createLimiter(concurrency: Concurrency): { run<T>(fn: () => Promise<T>): Promise<T> } {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+  const limit =
+    concurrency === "sequential" ? 1 : concurrency === "full" ? Number.POSITIVE_INFINITY : concurrency;
+
+  return {
+    async run<T>(fn: () => Promise<T>): Promise<T> {
+      if (active >= limit) {
+        await new Promise<void>((resolve) => {
+          waiters.push(resolve);
+        });
+      }
+      active += 1;
+      try {
+        return await fn();
+      } finally {
+        active -= 1;
+        waiters.shift()?.();
+      }
+    },
+  };
+}
+
 export type FanoutRecord = {
   requested: Concurrency;
   effective: Concurrency;

@@ -118,6 +118,7 @@ export type LanePayload = {
   gate?: RunManifest["repos"][string]["gate"];
   gate_note?: string;
   needs_decision: boolean;
+  research_error?: string;
   terminal?: RunManifest["repos"][string]["terminal"];
   stages: string[];
   pr?: { url: string; number?: number; stub?: boolean };
@@ -306,7 +307,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
       needsHumanDecision(spec) &&
       !decision &&
       !entry?.gate &&
-      (phase === "gate" || phase === "research");
+      !entry?.terminal;
     if (needsDecision && spec) pending.push(repo.slug);
     const grade = spec?.execution_grade ?? entry?.grade_override;
     const writeModel =
@@ -339,6 +340,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
       gate: entry?.gate ?? (decision?.decision === "skipped" ? "skipped" : decision?.decision),
       gate_note: entry?.gate_note ?? decision?.note,
       needs_decision: needsDecision,
+      research_error: entry?.research_error,
       terminal: entry?.terminal,
       stages: entry?.stages ?? [],
       pr: prFromArtifacts(runDir, repo.slug, entry?.pr_url),
@@ -354,7 +356,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
     };
   });
 
-  const holding = phase === "gate" && controlling;
+  const holding = controlling && pending.length > 0;
   return {
     runId: manifest.runId,
     mode: manifest.mode,
@@ -391,7 +393,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
     },
     timings: manifest.timings,
     pending_decisions: pending,
-    can_release: holding && pending.length === 0,
+    can_release: false,
     holding,
     controlling,
     lanes,

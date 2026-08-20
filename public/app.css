@@ -284,6 +284,10 @@ a:hover { color: #bfdfeb; }
 }
 .agent.run { background: var(--bg-node-hot); border-color: rgba(224,164,55,.3); }
 .agent.done { background: #0e1214; }
+.agent.fail { background: #140e0e; border-color: rgba(224,90,79,.35); }
+.meta-state.amber { color: var(--amber); }
+.meta-state.red { color: var(--red-text); }
+.tick.red { color: var(--red-text); }
 .agent-head {
   width: 100%; background: none; border: none; padding: 0; text-align: left;
   display: flex; align-items: center; gap: 8px; min-width: 0;

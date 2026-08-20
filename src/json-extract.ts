@@ -48,6 +48,19 @@ export function firstObjectSlice(raw: string, start: number): string | undefined
   return undefined;
 }
 
+/** Short operator-facing reason; keep the original Error.message for logs. */
+export function describeAgentFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/did not contain a complete JSON object/i.test(message)) return "incomplete JSON in output";
+  if (/did not contain a JSON object/i.test(message)) return "no JSON object in output";
+  if (/SDK startup failed/i.test(message)) {
+    const inner = message.replace(/^SDK startup failed[^:]*:\s*/i, "").trim();
+    return inner && inner.length <= 140 ? `startup: ${inner}` : "SDK startup failed";
+  }
+  if (/ZodError|invalid_type|Required/i.test(message)) return "output failed schema validation";
+  return message.length > 140 ? `${message.slice(0, 137)}…` : message;
+}
+
 export function assistantTextFromEvents(
   events: Array<{ type: string; text?: string }>,
 ): string {

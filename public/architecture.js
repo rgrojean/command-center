@@ -15,7 +15,7 @@ const ArchitectureDrawer = (() => {
     ["d22", "schema", "D22", "Agents emit schema-validated JSON, not prose", "src/spec-schema.ts · human-impact-schema.ts · write-summary-schema.ts", "EvidenceSchema requires quote. runValidated retries once on Zod failure, then throws."],
     ["d27", "schema", "D27–D29", "Cross-field consistency + blocker classes + boundary test", "src/spec-schema.ts · prompts/research-agent.md", "blocked iff ≥1 organizational. unaffected needs evidence[]. D29 boundary is a prompt sentence; class split is schema."],
     ["d20", "guarantee", "D20", "Grade in, model out — agent never names the model", "src/models.ts", "mechanical/contextual/judgment_heavy → config table. HTTP gate can override grade or model."],
-    ["d16", "guarantee", "D16 / D4", "Gate reviews English specs between research and write", "src/gate.ts · src/hold.ts", "CLI is y/N. Dashboard hold is approve/reject + optional note/grade/model. Blocked never enters write even if approved."],
+    ["d16", "guarantee", "D16 / D4", "Gate reviews English specs between research and write", "src/gate.ts · src/hold.ts", "CLI is y/N. Dashboard is per-repo approve/reject + optional note/grade/model; write starts on that repo without waiting for the rest of the fleet. Blocked never enters write even if approved."],
     ["d25", "guarantee", "D25 / D8", "Two retry loops, one job each", "src/pipeline.ts", "Inner ≤3 test-fix inside one agent run. Outer: one model-tier climb if writeRunFailed. Schema retry is neither."],
     ["d32ws", "guarantee", "D32 (ADR)", "Workspace lifecycle is scripts, not prompts", "src/clone.ts", "checkout the run's starting SHA, reset --hard, clean -fdx before research and before write."],
     ["d7", "guarantee", "D7 / D5", "Orchestrator owns git/PR; agents never push", "src/pr.ts · src/fake-pr.ts", "PR body assembled from the spec. Never merges. Blocked repos get escalation.json."],
@@ -142,7 +142,7 @@ const ArchitectureDrawer = (() => {
       )),
       rail(`<div class="arch-callout human">
           <div class="arch-callout-title">Human gate — last cheap sequential moment</div>
-          <p>Reviews English + citations, not diffs. CLI is y/N (src/gate.ts). Dashboard holds the run until approve/reject + optional note, grade override, model override (src/hold.ts, src/http.ts). Blocked never enters write even if someone types y. Note is stored as gate_note and is not injected into the write prompt — that is the reviewer-directives seam.</p>
+          <p>Reviews English + citations, not diffs. CLI is y/N (src/gate.ts). Dashboard is per-repo: approve/reject + optional note, grade override, model override (src/hold.ts, src/http.ts). An approved affected repo starts GIMLI immediately — other lanes can still be researching. Blocked never enters write even if someone types y. Note is stored as gate_note and is not injected into the write prompt — that is the reviewer-directives seam.</p>
         </div>
         ${files(["src/gate.ts", "src/hold.ts", "src/http.ts", "src/pipeline.ts", "public/app.js"])}`),
       rail(`<p class="arch-aside">Split by verdict — write fan-out only for approved + affected</p>
