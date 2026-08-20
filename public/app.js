@@ -1040,33 +1040,69 @@ function hideOverview() {
   showOverlay("overview", false);
 }
 
-function showCoach(step) {
-  state.coachStep = step;
-  const coach = $("coach");
+let coachRaf = 0;
+
+function coachHole() {
+  if (state.coachStep === "live") return $("live-check");
+  if (state.coachStep === "run") return $("run-btn");
+  return null;
+}
+
+function placeCoach() {
+  const step = state.coachStep;
+  const hole = coachHole();
   const spot = $("coach-spot");
   const tip = $("coach-tip");
-  const target = step === "live" ? $("live-toggle") : $("run-btn");
-  const rect = target.getBoundingClientRect();
-  const pad = 22;
-  const size = Math.max(rect.width, rect.height) + pad * 2;
+  if (!step || !hole || !spot || !tip) return;
+  const rect = hole.getBoundingClientRect();
+  const pad = step === "live" ? 16 : 22;
+  const size = Math.max(rect.width, rect.height, 22) + pad * 2;
   spot.style.width = `${size}px`;
   spot.style.height = `${size}px`;
   spot.style.left = `${rect.left + rect.width / 2 - size / 2}px`;
   spot.style.top = `${rect.top + rect.height / 2 - size / 2}px`;
-  $("coach-text").textContent =
-    step === "live"
-      ? "Check LIVE to run real Cursor agents against the sample fleet. Leave it off for a stub rehearsal with no SDK calls."
-      : "RUN starts research across every consumer. The gate holds until you approve or reject each spec.";
   const tipLeft = Math.max(16, Math.min(rect.left, window.innerWidth - 360));
   const below = rect.bottom + 18;
   const tipTop = below + 140 > window.innerHeight ? Math.max(16, rect.top - 150) : below;
   tip.style.left = `${tipLeft}px`;
   tip.style.top = `${tipTop}px`;
-  coach.classList.remove("hidden");
-  coach.setAttribute("aria-hidden", "false");
+}
+
+function onCoachMove() {
+  if (!state.coachStep) return;
+  if (coachRaf) cancelAnimationFrame(coachRaf);
+  coachRaf = requestAnimationFrame(() => {
+    coachRaf = 0;
+    placeCoach();
+  });
+}
+
+function bindCoachTracking(on) {
+  window.removeEventListener("scroll", onCoachMove, true);
+  window.removeEventListener("resize", onCoachMove);
+  document.removeEventListener("scroll", onCoachMove, true);
+  if (!on) return;
+  window.addEventListener("scroll", onCoachMove, true);
+  window.addEventListener("resize", onCoachMove);
+  document.addEventListener("scroll", onCoachMove, true);
+}
+
+function showCoach(step) {
+  state.coachStep = step;
+  $("coach-text").textContent =
+    step === "live"
+      ? "Check LIVE to kick off a live Cursor SDK call, spinning up agents per repo. Leave it off for a stub rehearsal with no SDK calls."
+      : "RUN starts research across every consumer. The gate holds until you approve or reject each spec.";
+  $("coach").classList.remove("hidden");
+  $("coach").setAttribute("aria-hidden", "false");
+  bindCoachTracking(true);
+  placeCoach();
 }
 
 function hideCoach() {
+  bindCoachTracking(false);
+  if (coachRaf) cancelAnimationFrame(coachRaf);
+  coachRaf = 0;
   $("coach").classList.add("hidden");
   $("coach").setAttribute("aria-hidden", "true");
   state.coachStep = null;
@@ -1209,9 +1245,6 @@ async function init() {
       $("hint").textContent = err instanceof Error ? err.message : String(err);
     });
   };
-  window.addEventListener("resize", () => {
-    if (state.coachStep) showCoach(state.coachStep);
-  });
   ArchitectureDrawer.mount();
   $("arch-btn").onclick = () => ArchitectureDrawer.toggle();
   $("arch-close").onclick = () => ArchitectureDrawer.close();
