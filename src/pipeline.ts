@@ -12,9 +12,11 @@ import {
 import { diffOpenApi, resolveV2Path } from "./diff.js";
 import {
   applyDegrade,
+  capHostedConcurrency,
   createLimiter,
   initialFanout,
   isCapacityError,
+  isCreditsError,
   labelConcurrency,
   mapFanout,
   type Concurrency,
@@ -65,6 +67,7 @@ import {
   appendEvent,
   appendRunEvent,
   createRun,
+  markRunKilled,
   nowIso,
   repoDir,
   touchStage,
@@ -76,7 +79,7 @@ import {
 } from "./state.js";
 import type { PipelineStage, TerminalState } from "./terminal-states.js";
 import { WriteSummarySchema, writeRunFailed, type WriteSummary } from "./write-summary-schema.js";
-import { openRealPrs, useCloudAgents } from "./runtime.js";
+import { openRealPrs, isVercel, useCloudAgents } from "./runtime.js";
 
 const INNER_RETRY_BUDGET = 3;
 
@@ -84,11 +87,29 @@ function assertNotKilled(hold?: HttpHold): void {
   if (hold?.aborted) throw hold.aborted;
 }
 
+function noteCreditsExhausted(runDir: string, manifest: RunManifest, err: unknown): void {
+  if (!isCreditsError(err) || manifest.credits_exhausted) return;
+  manifest.credits_exhausted = true;
+  appendRunEvent(runDir, {
+    ts: nowIso(),
+    stage: "run",
+    type: "credits_exhausted",
+    message: "out of Cursor credits",
+    data: { error: err instanceof Error ? err.message : String(err) },
+  });
+  writeManifest(runDir, manifest);
+}
+
 function agentCtl(hold?: HttpHold) {
   return {
     signal: hold?.signal,
     registerCancel: hold?.registerCancel,
   };
+}
+
+function hostedConcurrency(requested: Concurrency, mode: AgentMode): Concurrency {
+  if (isVercel() && mode === "live") return capHostedConcurrency(requested);
+  return requested;
 }
 
 export type PipelineOptions = {
@@ -175,6 +196,7 @@ async function runValidated<T>(
     runDir: string;
     stage: PipelineStage;
     httpHold?: HttpHold;
+    pipelineRunId: string;
   },
   schema: ZodType<T>,
 ): Promise<T> {
@@ -186,6 +208,7 @@ async function runValidated<T>(
     kind: opts.kind,
     githubUrl: opts.repo.github_url,
     startingRef: pinRef(opts.repo),
+    pipelineRunId: opts.pipelineRunId,
     onEvent: opts.mode === "live" ? liveSink(opts.runDir, opts.repo.slug, opts.stage) : undefined,
     ...agentCtl(opts.httpHold),
   };
@@ -263,6 +286,7 @@ async function researchPair(
       runDir,
       stage: "research",
       httpHold: opts.httpHold,
+      pipelineRunId: manifest.runId,
     },
     schemas.research,
   ).catch((err: unknown) => {
@@ -286,6 +310,7 @@ async function researchPair(
       runDir,
       stage: "human_impact",
       httpHold: opts.httpHold,
+      pipelineRunId: manifest.runId,
     },
     HumanImpactSchema,
   ).catch((err: unknown) => {
@@ -421,13 +446,13 @@ async function executeWrite(
     githubUrl: repo.github_url,
     startingRef: pinRef(repo),
     autoCreatePR: opts.mode === "live" && useCloudAgents() && openRealPrs(),
+    pipelineRunId: manifest.runId,
     onEvent: opts.mode === "live" ? liveSink(runDir, repo.slug, "write") : undefined,
     ...agentCtl(opts.httpHold),
   });
   if (opts.mode !== "live") recordRun(runDir, repo.slug, "write", first);
   let summary = WriteSummarySchema.parse(first.result);
   let modelUsed: string = modelOverride ?? writeModelForGrade(grade, opts.mode);
-  touchStage(manifest, repo.slug, "write");
 
   if (writeRunFailed(summary)) {
     const next = nextModelTier(modelUsed, opts.mode);
@@ -449,6 +474,7 @@ async function executeWrite(
         githubUrl: repo.github_url,
         startingRef: pinRef(repo),
         autoCreatePR: opts.mode === "live" && useCloudAgents() && openRealPrs(),
+        pipelineRunId: manifest.runId,
         onEvent:
           opts.mode === "live" ? liveSink(runDir, repo.slug, "escalate_write") : undefined,
         ...agentCtl(opts.httpHold),
@@ -612,6 +638,42 @@ function markResearchFailed(
   notify({ runId, repo: repo.slug, from: "research", to: "failed", at: nowIso() });
   writeManifest(runDir, manifest);
   console.warn(`research pair failed (${repo.slug}): ${message}`);
+  noteCreditsExhausted(runDir, manifest, err);
+}
+
+function markWriteFailed(
+  runId: string,
+  runDir: string,
+  repo: FleetRepo,
+  manifest: RunManifest,
+  err: unknown,
+): void {
+  const message = err instanceof Error ? err.message : String(err);
+  const short = describeAgentFailure(err);
+  appendEvent(runDir, {
+    ts: nowIso(),
+    repo: repo.slug,
+    stage: "write",
+    type: "agent_failed",
+    message: short,
+    data: { error: message },
+  });
+  appendRunEvent(runDir, {
+    ts: nowIso(),
+    stage: "run",
+    type: "repo_isolated",
+    message: `${repo.slug} GIMLI failed; other repos continue: ${short}`,
+    data: { slug: repo.slug, error: message },
+  });
+  const entry = manifest.repos[repo.slug];
+  if (entry) {
+    entry.terminal = "failed";
+    entry.write_error = short;
+  }
+  notify({ runId, repo: repo.slug, from: "write", to: "failed", at: nowIso() });
+  writeManifest(runDir, manifest);
+  console.warn(`write failed (${repo.slug}): ${message}`);
+  noteCreditsExhausted(runDir, manifest, err);
 }
 
 async function writeLane(
@@ -624,6 +686,7 @@ async function writeLane(
   manifest: RunManifest,
   modelOverride?: string,
 ): Promise<void> {
+  assertNotKilled(opts.httpHold);
   appendEvent(runDir, {
     ts: nowIso(),
     repo: repo.slug,
@@ -631,38 +694,46 @@ async function writeLane(
     type: "start",
     message: `GIMLI · ${modelOverride ?? writeModelForGrade(spec.execution_grade!, opts.mode)}`,
   });
-  const summary = await executeWrite(
-    repo,
-    spec,
-    diffSummary,
-    opts,
-    runDir,
-    manifest,
-    modelOverride,
-  );
-  if (writeRunFailed(summary) && opts.mode === "live") {
-    const artifact = buildEscalation(
+  touchStage(manifest, repo.slug, "write");
+  writeManifest(runDir, manifest);
+  try {
+    const summary = await executeWrite(
       repo,
       spec,
-      "write_failed",
-      "Write agent exhausted inner retries (and outer escalate if any); no PR.",
+      diffSummary,
+      opts,
+      runDir,
+      manifest,
+      modelOverride,
     );
-    writeJson(runDir, repo.slug, "escalation.json", artifact);
-    touchStage(manifest, repo.slug, "escalation_artifact");
-  } else if (opts.mode === "live" && openRealPrs() && !useCloudAgents()) {
-    const pr = openPullRequest({ repo, workspace: workspaceFor(repo.slug), spec, summary });
-    writeJson(runDir, repo.slug, "pr.json", pr);
-    manifest.repos[repo.slug]!.pr_url = pr.url;
-    touchStage(manifest, repo.slug, "pr");
-  } else {
-    const fakePr = buildFakePr(repo, spec, summary);
-    writeJson(runDir, repo.slug, "fake-pr.json", fakePr);
-    touchStage(manifest, repo.slug, "fake_pr");
+    if (writeRunFailed(summary) && opts.mode === "live") {
+      const artifact = buildEscalation(
+        repo,
+        spec,
+        "write_failed",
+        "Write agent exhausted inner retries (and outer escalate if any); no PR.",
+      );
+      writeJson(runDir, repo.slug, "escalation.json", artifact);
+      touchStage(manifest, repo.slug, "escalation_artifact");
+    } else if (opts.mode === "live" && openRealPrs() && !useCloudAgents()) {
+      const pr = openPullRequest({ repo, workspace: workspaceFor(repo.slug), spec, summary });
+      writeJson(runDir, repo.slug, "pr.json", pr);
+      manifest.repos[repo.slug]!.pr_url = pr.url;
+      touchStage(manifest, repo.slug, "pr");
+    } else {
+      const fakePr = buildFakePr(repo, spec, summary);
+      writeJson(runDir, repo.slug, "fake-pr.json", fakePr);
+      touchStage(manifest, repo.slug, "fake_pr");
+    }
+    const terminal = terminalFor(spec, summary);
+    manifest.repos[repo.slug]!.terminal = terminal;
+    notify({ runId, repo: repo.slug, from: "write", to: terminal, at: nowIso() });
+    writeManifest(runDir, manifest);
+  } catch (err) {
+    if (isPipelineKilled(err)) throw err;
+    if (isCapacityError(err) && !opts.httpHold) throw err;
+    markWriteFailed(runId, runDir, repo, manifest, err);
   }
-  const terminal = terminalFor(spec, summary);
-  manifest.repos[repo.slug]!.terminal = terminal;
-  notify({ runId, repo: repo.slug, from: "write", to: terminal, at: nowIso() });
-  writeManifest(runDir, manifest);
 }
 
 function applyDecisionToSpec(spec: MigrationSpec, decision: HttpDecision): MigrationSpec {
@@ -688,6 +759,7 @@ function degradeFanout(
     data: { kind, from: labelConcurrency(from), to: labelConcurrency(to), reason },
   });
   writeManifest(runDir, manifest);
+  noteCreditsExhausted(runDir, manifest, new Error(reason));
   console.warn(`concurrency degraded: ${kind} ${labelConcurrency(from)} → ${labelConcurrency(to)}`);
 }
 
@@ -742,6 +814,7 @@ async function settleHttpRepo(
   hold: HttpHold,
   writeLimiter: { run<T>(fn: () => Promise<T>): Promise<T> },
 ): Promise<void> {
+  assertNotKilled(hold);
   if (spec.verdict === "blocked") {
     finalizeBlocked(runId, runDir, repo, spec, manifest, "skipped");
     writeJson(runDir, repo.slug, "decision.json", { decision: "skipped", at: nowIso() });
@@ -809,8 +882,14 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
     v3Path,
     fleetPath,
     businessContext: opts.businessContext ?? businessContextProse(fleet.business_context),
-    researchConcurrency: opts.researchConcurrency ?? fleetResearchConcurrency(fleet),
-    writeConcurrency: opts.writeConcurrency ?? fleetWriteConcurrency(fleet),
+    researchConcurrency: hostedConcurrency(
+      opts.researchConcurrency ?? fleetResearchConcurrency(fleet),
+      opts.mode,
+    ),
+    writeConcurrency: hostedConcurrency(
+      opts.writeConcurrency ?? fleetWriteConcurrency(fleet),
+      opts.mode,
+    ),
   };
   manifest.concurrency = {
     research: initialFanout(resolved.researchConcurrency ?? "full"),
@@ -885,7 +964,7 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
     },
   });
   const researchStarted = Date.now();
-  const writeLimiter = createLimiter(resolved.writeConcurrency ?? "full");
+  const writeLimiter = createLimiter(resolved.writeConcurrency ?? "full", opts.httpHold?.signal);
   const settlements: Promise<void>[] = [];
   const enqueueSettle = (repo: FleetRepo, spec: MigrationSpec) => {
     if (!opts.httpHold) return;
@@ -916,12 +995,20 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
         specs.set(repo.slug, spec);
         enqueueSettle(repo, spec);
       } catch (err) {
+        noteCreditsExhausted(dir, manifest, err);
         if (isCapacityError(err) || isPipelineKilled(err)) throw err;
         markResearchFailed(runId, dir, repo, manifest, err);
       }
     },
     (from, to, reason) => degradeFanout(dir, manifest, "research", from, to, reason),
-  );
+  ).catch(async (err: unknown) => {
+    noteCreditsExhausted(dir, manifest, err);
+    if (isPipelineKilled(err)) {
+      if (opts.httpHold) await Promise.allSettled(settlements);
+      markRunKilled(dir);
+    }
+    throw err;
+  });
   manifest.timings = { ...manifest.timings, research_ms: Date.now() - researchStarted };
   writeManifest(dir, manifest);
 
@@ -932,6 +1019,11 @@ export async function runPipeline(opts: PipelineOptions): Promise<RunManifest> {
       manifest.timings = { ...manifest.timings, write_ms: Date.now() - writeStarted };
       writeManifest(dir, manifest);
     } catch (err) {
+      if (isPipelineKilled(err)) {
+        markRunKilled(dir);
+        throw err;
+      }
+      noteCreditsExhausted(dir, manifest, err);
       manifest.phase = "failed";
       manifest.error = err instanceof Error ? err.message : String(err);
       writeManifest(dir, manifest);

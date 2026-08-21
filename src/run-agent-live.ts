@@ -6,11 +6,14 @@ import { PipelineKilled } from "./hold.js";
 import { extractJson } from "./json-extract.js";
 import type { AgentEvent, RunAgentOptions, RunAgentResult } from "./run-agent-types.js";
 import { isolateHeadroomMs, isolateRemainingMs, useCloudAgents } from "./runtime.js";
+import { trackCloudRun, untrackCloudRun } from "./cloud-handles.js";
 
 /** No stream event for this long → treat the SSE as dead and poll the run. */
-export const STREAM_IDLE_MS = 90_000;
+export const STREAM_IDLE_MS = 40_000;
+const CREATE_MS = 60_000;
+const SEND_MS = 60_000;
 /** `run.wait()` after the stream ends — must not hang the isolate. */
-const WAIT_MS = 45_000;
+const WAIT_MS = 15_000;
 /** wait() blocks until terminal; timeout means still running, not "use the leftover tokens". */
 const POLL_WAIT_MS = 30_000;
 const POLL_SLEEP_MS = 10_000;
@@ -64,6 +67,40 @@ function throwIfKilled(signal?: AbortSignal): void {
   if (signal?.aborted) throw new PipelineKilled();
 }
 
+function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new PipelineKilled());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new PipelineKilled());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
+function rememberCloudRun(opts: RunAgentOptions, run: SdkRun): void {
+  if (!opts.pipelineRunId || !useCloudAgents()) return;
+  trackCloudRun(opts.pipelineRunId, {
+    repo: opts.repo,
+    kind: opts.kind,
+    agentId: run.agentId,
+    runId: run.id,
+  });
+}
+
+function forgetCloudRun(opts: RunAgentOptions, run: SdkRun): void {
+  if (!opts.pipelineRunId) return;
+  untrackCloudRun(opts.pipelineRunId, run.id);
+}
+
 function tryCancel(run: SdkRun): void {
   if (run.supports("cancel")) void run.cancel();
 }
@@ -84,15 +121,24 @@ function isTimeout(err: unknown): boolean {
   return /timed out after/i.test(detailOf(err));
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  throwIfKilled(signal);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-      }),
-    ]);
+    return await raceAbort(
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+        }),
+      ]),
+      signal,
+    );
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -116,15 +162,20 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function* iterateWithIdle<T>(source: AsyncIterable<T>, idleMs: number): AsyncGenerator<T> {
+async function* iterateWithIdle<T>(
+  source: AsyncIterable<T>,
+  idleMs: number,
+  signal?: AbortSignal,
+): AsyncGenerator<T> {
   const it = source[Symbol.asyncIterator]();
   while (true) {
+    throwIfKilled(signal);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new IdleTimeoutError(idleMs)), idleMs);
     });
     try {
-      const result = await Promise.race([it.next(), timeout]);
+      const result = await raceAbort(Promise.race([it.next(), timeout]), signal);
       if (result.done) return;
       yield result.value;
     } finally {
@@ -142,8 +193,8 @@ async function cloudHandle(run: SdkRun): Promise<SdkRun> {
   })) as unknown as SdkRun;
 }
 
-async function waitOnce(run: SdkRun, ms: number): Promise<Waited> {
-  return withTimeout(run.wait(), ms, "run.wait");
+async function waitOnce(run: SdkRun, ms: number, signal?: AbortSignal): Promise<Waited> {
+  return withTimeout(run.wait(), ms, "run.wait", signal);
 }
 
 function waitedErrorMessage(waited: Waited): string {
@@ -193,7 +244,7 @@ async function pollCloudRun(
     }
     try {
       const handle = await cloudHandle(run);
-      const waited = await waitOnce(handle, POLL_WAIT_MS);
+      const waited = await waitOnce(handle, POLL_WAIT_MS, opts.signal);
       if (isWaitedStreamGone(waited) || waited.status === "running") {
         note(`cloud run still going · ${elapsedLabel(started)}`);
         await sleep(POLL_SLEEP_MS, opts.signal);
@@ -223,7 +274,7 @@ async function finishRun(
 ): Promise<Waited> {
   if (!dropped) {
     try {
-      const waited = await waitOnce(run, WAIT_MS);
+      const waited = await waitOnce(run, WAIT_MS, opts.signal);
       if (isWaitedStreamGone(waited)) {
         return pollCloudRun(run, streamed || waited.result || "", emit, opts);
       }
@@ -253,7 +304,7 @@ async function watchRun(
   let streamed = "";
   let dropped = false;
   try {
-    for await (const event of iterateWithIdle(run.stream(), STREAM_IDLE_MS)) {
+    for await (const event of iterateWithIdle(run.stream(), STREAM_IDLE_MS, opts.signal)) {
       throwIfKilled(opts.signal);
       const typed = event as Parameters<typeof textOf>[0] & {
         type: string;
@@ -271,10 +322,18 @@ async function watchRun(
           text: `${typed.name} ${typed.status}`,
           data: { name: typed.name, status: typed.status, call_id: typed.call_id },
         });
+      } else if (typed.type === "status") {
+        emit({
+          type: "status",
+          text: String((typed as { status?: string }).status ?? "running"),
+        });
       }
     }
   } catch (err) {
-    if (err instanceof PipelineKilled) throw err;
+    if (err instanceof PipelineKilled) {
+      emit({ type: "killed", text: "killed from dashboard" });
+      throw err;
+    }
     if (err instanceof IdleTimeoutError || isStreamGone(err)) {
       dropped = true;
       emit({
@@ -313,9 +372,15 @@ async function parseOrRepair(
     const why = parseErr instanceof Error ? parseErr.message : String(parseErr);
     emit({ type: "json_retry", text: why });
     throwIfKilled(opts.signal);
-    const fix = (await agent.send(
-      `Your previous output was not valid JSON (${why}). Return ONLY a corrected JSON object. No markdown fences, no prose before or after it.`,
+    const fix = (await withTimeout(
+      agent.send(
+        `Your previous output was not valid JSON (${why}). Return ONLY a corrected JSON object. No markdown fences, no prose before or after it.`,
+      ),
+      SEND_MS,
+      "agent.send",
+      opts.signal,
     )) as unknown as SdkRun;
+    rememberCloudRun(opts, fix);
     emit({
       type: "run_started",
       text: `agent=${fix.agentId} run=${fix.id} model=${opts.model} json_retry`,
@@ -329,6 +394,7 @@ async function parseOrRepair(
       throwIfFailed(fixed);
       return extractJson(fixed.result ?? "");
     } finally {
+      forgetCloudRun(opts, fix);
       unregister?.();
     }
   }
@@ -389,7 +455,7 @@ async function runLiveAttempt(
   throwIfKilled(opts.signal);
   const cloud = useCloudAgents();
   const startingRef = cloud
-    ? await cloudStartingRef(opts.githubUrl, opts.startingRef)
+    ? await raceAbort(cloudStartingRef(opts.githubUrl, opts.startingRef), opts.signal)
     : opts.startingRef;
   if (cloud && !startingRef) {
     throw new Error(`live ${opts.kind} for ${opts.repo} needs startingRef on cloud runtime`);
@@ -400,28 +466,61 @@ async function runLiveAttempt(
       text: `cloud startingRef ${opts.startingRef} → ${startingRef}`,
     });
   }
-  const agent = await Agent.create({
-    ...(apiKey ? { apiKey } : {}),
-    model: { id: opts.model },
-    ...(cloud
-      ? {
-          cloud: {
-            repos: [
-              {
-                url: opts.githubUrl!,
-                startingRef,
-              },
-            ],
-            autoCreatePR: opts.kind === "write" && opts.autoCreatePR === true,
-            skipReviewerRequest: true,
-          },
-        }
-      : { local: { cwd: opts.workspace, settingSources: [] as const } }),
+  emit({
+    type: "cloud_boot",
+    text: cloud ? "starting cloud VM" : "starting local agent",
   });
+  let agent: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  try {
+    agent = await withTimeout(
+      Agent.create({
+        ...(apiKey ? { apiKey } : {}),
+        model: { id: opts.model },
+        ...(cloud
+          ? {
+              cloud: {
+                repos: [
+                  {
+                    url: opts.githubUrl!,
+                    startingRef,
+                  },
+                ],
+                autoCreatePR: opts.kind === "write" && opts.autoCreatePR === true,
+                skipReviewerRequest: true,
+              },
+            }
+          : { local: { cwd: opts.workspace, settingSources: [] as const } }),
+      }).then((created) => {
+        agent = created;
+        return created;
+      }),
+      CREATE_MS,
+      "Agent.create",
+      opts.signal,
+    );
+  } catch (err) {
+    if (agent) {
+      try {
+        await agent[Symbol.asyncDispose]();
+      } catch {
+        /* */
+      }
+    }
+    throw err;
+  }
+  if (!agent) throw new Error("Agent.create returned no agent");
+  const session = agent;
   try {
     throwIfKilled(opts.signal);
-    const run = (await agent.send(opts.prompt)) as unknown as SdkRun;
+    emit({ type: "cloud_boot", text: "sending prompt" });
+    const run = (await withTimeout(
+      session.send(opts.prompt),
+      SEND_MS,
+      "agent.send",
+      opts.signal,
+    )) as unknown as SdkRun;
     throwIfKilled(opts.signal);
+    rememberCloudRun(opts, run);
     const cancel = () => tryCancel(run);
     const unregister = opts.registerCancel?.(cancel);
     opts.signal?.addEventListener("abort", cancel, { once: true });
@@ -438,14 +537,15 @@ async function runLiveAttempt(
         throw new PipelineKilled();
       }
       throwIfFailed(waited);
-      const result = await parseOrRepair(agent, waited, emit, opts, events);
+      const result = await parseOrRepair(session, waited, emit, opts, events);
       emit({ type: "run_finished", text: waited.status, data: { id: waited.id } });
       return { events, result };
     } finally {
+      forgetCloudRun(opts, run);
       opts.signal?.removeEventListener("abort", cancel);
       unregister?.();
     }
   } finally {
-    await agent[Symbol.asyncDispose]();
+    await session[Symbol.asyncDispose]();
   }
 }

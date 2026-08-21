@@ -2,6 +2,8 @@
  * Agents are told "JSON only, no fences" and still narrate, fence, or append
  * a trailing `}`. Parse the first complete object; ignore leftover closers.
  */
+import { isCreditsError } from "./concurrency.js";
+
 export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = (fenced?.[1] ?? text).trim();
@@ -67,13 +69,14 @@ export function firstObjectSlice(raw: string, start: number): string | undefined
 /** Short operator-facing reason; keep the original Error.message for logs. */
 export function describeAgentFailure(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
+  if (isCreditsError(err)) return "out of Cursor credits";
   if (/did not contain a complete JSON object/i.test(message)) return "incomplete JSON in output";
   if (/did not contain a JSON object/i.test(message)) return "no JSON object in output";
   if (/JSON at position|Expected ',' or '\]'|Expected ',' or '\}'|Unexpected token/i.test(message)) {
     return "malformed JSON in output";
   }
-  if (/host time budget|did not finish before host time/i.test(message)) {
-    return "cloud run still going when host time ran out";
+  if (/Agent\.create timed out|agent\.send timed out/i.test(message)) {
+    return "cloud agent startup timed out";
   }
   if (/SDK startup failed/i.test(message)) {
     const inner = message.replace(/^SDK startup failed[^:]*:\s*/i, "").trim();

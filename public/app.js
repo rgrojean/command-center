@@ -15,6 +15,7 @@ const state = {
   openStreams: {},
   releasing: false,
   killing: false,
+  creditsDismissed: false,
   poll: null,
   pollMisses: 0,
   modal: null,
@@ -190,6 +191,13 @@ function lastTickHtml(lane, stage, events, idle) {
   const fail = [...events].reverse().find((e) => String(e.type || "").toLowerCase() === "agent_failed");
   if (fail) return esc(lastTick([fail], idle));
   const useful = (events || []).filter((e) => !tickNoise(e.type));
+  const lastType = String((events[events.length - 1] || {}).type || "").toLowerCase();
+  if (lastType === "run_finished") {
+    if (assistantJson(useful.length ? useful : events)) {
+      return `result · <button class="json-link" type="button" data-json-slug="${esc(lane.slug)}" data-json-stage="${esc(stage)}" data-json-idx="all">json result</button>`;
+    }
+    return esc("done");
+  }
   if (watchingCloud(events)) {
     const prev = useful.length ? lastTick(useful, idle) : idle;
     return esc(`watching cloud · ${prev}`.slice(0, 72));
@@ -210,6 +218,9 @@ function kindLabel(type) {
   if (t === "schema_retry" || t === "json_retry") return "RETRY";
   if (t === "stream_recover" || t === "run_poll") return "POLL";
   if (t === "stream_idle" || t === "stream_idle_retry") return "IDLE";
+  if (t === "cloud_boot") return "BOOT";
+  if (t === "run_finished") return "DONE";
+  if (t === "status") return "STATUS";
   if (t === "start") return "START";
   if (t === "start_pin" || t === "starting_ref") return "PIN";
   if (t === "pair_failed" || t === "agent_failed") return "FAILED";
@@ -303,6 +314,7 @@ function agentState(lane, stage, phase) {
   const failedEvt = events.some((e) => String(e.type || "").toLowerCase() === "agent_failed");
   const writing = (lane.stages || []).includes("write") || (lane.stages || []).includes("fake_pr") || (lane.stages || []).includes("pr");
   if (stage === "write") {
+    if (failedEvt || lane.terminal === "failed") return "failed";
     if (lane.terminal && writing) return "done";
     if (lane.gate === "approved" && lane.verdict === "affected" && !lane.terminal) {
       return events.length ? "running" : "queued";
@@ -524,7 +536,7 @@ function renderAgent(lane, callsign, stage, model) {
     st === "done"
       ? "done"
       : st === "failed"
-        ? lane.research_error || "failed"
+        ? lane.write_error || lane.research_error || "failed"
         : stage === "write"
           ? "waiting for approval"
           : "waiting for fan-out";
@@ -605,10 +617,19 @@ function decisionLabel(lane, holding) {
   }
   if (lane.verdict === "blocked") return { text: "YOU SHALL NOT PASS", cls: "decision", color: "#eb8d83" };
   if (lane.gate === "approved") {
+    if (lane.terminal === "failed") {
+      return { text: "WRITE FAILED", cls: "decision", color: "#eb8d83" };
+    }
+    const writeStarted =
+      (lane.stages || []).includes("write") ||
+      (lane.events || []).some((e) => e.stage === "write");
+    if (lane.verdict === "affected" && !lane.terminal && writeStarted) {
+      return { text: "APPROVED · WRITING", cls: "decision", color: "#58c98a" };
+    }
     const queued =
       lane.verdict === "affected" &&
       !lane.terminal &&
-      !(lane.stages || []).includes("write") &&
+      !writeStarted &&
       !(lane.stages || []).includes("fake_pr") &&
       !(lane.stages || []).includes("pr");
     return { text: queued ? "APPROVED · QUEUED" : "APPROVED", cls: "decision", color: "#58c98a" };
@@ -901,7 +922,7 @@ function renderBoard() {
   }
 
   const killBtn = $("kill-btn");
-  const canKill = !!board?.controlling && phase !== "done" && phase !== "failed";
+  const canKill = !!state.runId && phase !== "done";
   killBtn.disabled = !canKill || state.killing;
 
   if (holding) $("hint").textContent = "approve a repo to start its write — others can still be researching";
@@ -913,6 +934,7 @@ function renderBoard() {
 
   bindBoardClicks();
   if (state.modal) renderDossier();
+  maybeShowCreditsModal(board);
 }
 
 function bindBoardClicks() {
@@ -1035,6 +1057,8 @@ function showLanding() {
   state.board = null;
   state.releasing = false;
   state.killing = false;
+  state.creditsDismissed = false;
+  hideCreditsModal();
   closeDossier();
   stopPoll();
   $("landing").classList.remove("hidden");
@@ -1059,6 +1083,7 @@ async function startRun() {
   const body = { mode: state.mode, ...previewBody() };
   const started = await api("/api/runs", { method: "POST", body: JSON.stringify(body) });
   state.runId = started.runId;
+  state.creditsDismissed = false;
   state.board = { runId: started.runId, mode: started.mode, phase: "research", lanes: idleLanesFromPreview(), chips: state.preview?.chips, producer: state.preview?.producer, fleet_count: state.preview?.fleet?.counts, holding: false, elapsed_s: 0, controlling: true };
   renderBoard();
   startPoll();
@@ -1077,17 +1102,19 @@ async function killRun() {
     $("hint").textContent = err instanceof Error ? err.message : String(err);
   } finally {
     state.killing = false;
+    renderBoard();
   }
 }
 
 async function restart() {
-  if (state.runId && state.board?.controlling) {
+  if (state.runId) {
     try {
       await api(`/api/runs/${state.runId}/abort`, { method: "POST", body: "{}" });
     } catch {
       /* already finished */
     }
   }
+  hideCreditsModal();
   showLanding();
 }
 
@@ -1112,6 +1139,24 @@ function showOverview() {
 
 function hideOverview() {
   showOverlay("overview", false);
+}
+
+function maybeShowCreditsModal(board) {
+  if (!board?.credits_exhausted || state.creditsDismissed) return;
+  showOverlay("credits-modal", true);
+}
+
+function hideCreditsModal() {
+  const el = $("credits-modal");
+  if (el) {
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+  }
+}
+
+function dismissCreditsModal() {
+  state.creditsDismissed = true;
+  hideCreditsModal();
 }
 
 let coachRaf = 0;
@@ -1300,6 +1345,7 @@ async function init() {
     hideOverview();
     showCoach("live");
   };
+  $("credits-ok").onclick = () => dismissCreditsModal();
   $("coach-next").onclick = () => hideCoach();
   $("context-skip").onclick = () => {
     hideContextModal();

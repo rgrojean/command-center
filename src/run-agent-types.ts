@@ -21,6 +21,8 @@ export type RunAgentOptions = {
   onEvent?: (event: AgentEvent) => void;
   signal?: AbortSignal;
   registerCancel?: (cancel: () => void) => () => void;
+  /** Pipeline run id — used to cancel leftover cloud agents after KILL or isolate death. */
+  pipelineRunId?: string;
 };
 
 export type AgentEvent = {

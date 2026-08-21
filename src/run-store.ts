@@ -8,9 +8,17 @@ type RemoteCtl = {
   abort?: string;
 };
 
+export type CloudHandle = {
+  repo: string;
+  kind: string;
+  agentId: string;
+  runId: string;
+};
+
 const g = globalThis as typeof globalThis & {
   __smBoard?: Map<string, BoardSnapshot>;
   __smCtl?: Map<string, RemoteCtl>;
+  __smCloud?: Map<string, CloudHandle[]>;
 };
 
 function boards(): Map<string, BoardSnapshot> {
@@ -19,6 +27,10 @@ function boards(): Map<string, BoardSnapshot> {
 
 function ctls(): Map<string, RemoteCtl> {
   return (g.__smCtl ??= new Map());
+}
+
+function cloudHandles(): Map<string, CloudHandle[]> {
+  return (g.__smCloud ??= new Map());
 }
 
 function runtimeCache() {
@@ -100,4 +112,45 @@ export async function takeRemoteCtl(runId: string): Promise<RemoteCtl> {
   if (empty) return ctl;
   await writeCtl(runId, { decisions: {} });
   return ctl;
+}
+
+async function readHandles(runId: string): Promise<CloudHandle[]> {
+  const local = cloudHandles().get(runId);
+  if (local) return local;
+  try {
+    const value = await runtimeCache()?.get(`cloud:${runId}`);
+    if (Array.isArray(value)) return value as CloudHandle[];
+  } catch {
+    /* */
+  }
+  return [];
+}
+
+async function writeHandles(runId: string, handles: CloudHandle[]): Promise<void> {
+  cloudHandles().set(runId, handles);
+  try {
+    await runtimeCache()?.set(`cloud:${runId}`, handles, { ttl: 60 * 60, name: "cloud-runs" });
+  } catch {
+    /* */
+  }
+}
+
+export async function publishCloudHandle(runId: string, handle: CloudHandle): Promise<void> {
+  const cur = await readHandles(runId);
+  await writeHandles(
+    runId,
+    [...cur.filter((h) => h.runId !== handle.runId), handle],
+  );
+}
+
+export async function dropCloudHandle(runId: string, sdkRunId: string): Promise<void> {
+  const cur = await readHandles(runId);
+  await writeHandles(
+    runId,
+    cur.filter((h) => h.runId !== sdkRunId),
+  );
+}
+
+export async function listCloudHandles(runId: string): Promise<CloudHandle[]> {
+  return readHandles(runId);
 }

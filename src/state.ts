@@ -39,6 +39,7 @@ export type RepoManifest = {
   research_model?: string;
   human_impact_model?: string;
   research_error?: string;
+  write_error?: string;
   escalated?: boolean;
   pr_url?: string;
 };
@@ -63,6 +64,7 @@ export type RunManifest = {
   diff_summary?: string;
   timings?: RunTimings;
   concurrency?: RunConcurrency;
+  credits_exhausted?: boolean;
   repos: Record<string, RepoManifest>;
 };
 
@@ -148,6 +150,34 @@ export function readManifest(runDir: string): RunManifest {
     throw new Error(`run not found`);
   }
   return JSON.parse(readFileSync(path, "utf8")) as RunManifest;
+}
+
+const KILLED_REASON = "killed from dashboard";
+
+/** Stamp the run and any in-flight repos so KILL is visible even if agents are still unwinding. */
+export function markRunKilled(runDir: string, reason = KILLED_REASON): RunManifest {
+  const manifest = readManifest(runDir);
+  manifest.phase = "failed";
+  manifest.error = reason;
+  manifest.finishedAt = manifest.finishedAt ?? nowIso();
+  for (const entry of Object.values(manifest.repos)) {
+    if (entry.terminal) continue;
+    entry.terminal = "failed";
+    if ((entry.stages ?? []).includes("write")) {
+      entry.write_error ??= reason;
+    } else {
+      entry.research_error ??= reason;
+    }
+    appendEvent(runDir, {
+      ts: nowIso(),
+      repo: entry.slug,
+      stage: (entry.stages ?? []).includes("write") ? "write" : "research",
+      type: "killed",
+      message: reason,
+    });
+  }
+  writeManifest(runDir, manifest);
+  return manifest;
 }
 
 export function listRunIds(): string[] {

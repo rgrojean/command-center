@@ -119,6 +119,7 @@ export type LanePayload = {
   gate_note?: string;
   needs_decision: boolean;
   research_error?: string;
+  write_error?: string;
   terminal?: RunManifest["repos"][string]["terminal"];
   stages: string[];
   pr?: { url: string; number?: number; stub?: boolean };
@@ -144,6 +145,7 @@ export type BoardSnapshot = {
   startedAt: string;
   finishedAt?: string;
   error?: string;
+  credits_exhausted?: boolean;
   elapsed_s: number;
   producer: { slug: string; display_name: string };
   fleet_count: { repos: number; producers: number; consumers: number };
@@ -341,6 +343,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
       gate_note: entry?.gate_note ?? decision?.note,
       needs_decision: needsDecision,
       research_error: entry?.research_error,
+      write_error: entry?.write_error,
       terminal: entry?.terminal,
       stages: entry?.stages ?? [],
       pr: prFromArtifacts(runDir, repo.slug, entry?.pr_url),
@@ -364,6 +367,7 @@ export function assembleBoard(runId: string, controlling: boolean): BoardSnapsho
     startedAt: manifest.startedAt,
     finishedAt: manifest.finishedAt,
     error: manifest.error,
+    credits_exhausted: manifest.credits_exhausted === true,
     elapsed_s: Number.isFinite(started) ? Math.max(0, (end - started) / 1000) : 0,
     producer: { slug: producer.slug, display_name: producer.display_name },
     fleet_count: {

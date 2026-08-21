@@ -5,10 +5,17 @@ import type { Express, Request, Response } from "express";
 import { assembleBoard, chipsFromDiff, latestRunId, liveEnabled } from "./board-payload.js";
 import { diffOpenApi, resolveV2Path } from "./diff.js";
 import { businessContextProse, loadFleet, parseFleet, producerOf } from "./fleet.js";
-import { createHttpHold, type HttpDecision, type HttpHold } from "./hold.js";
+import { createHttpHold, isPipelineKilled, type HttpDecision, type HttpHold } from "./hold.js";
 import { FLEET_PATH, STATE_DIR, V2_SPEC_PATH, V3_SPEC_PATH } from "./paths.js";
 import { runPipeline } from "./pipeline.js";
-import { beginIsolateBudget } from "./runtime.js";
+import { cancelTrackedCloudRuns } from "./cloud-handles.js";
+import { isCreditsError } from "./concurrency.js";
+import {
+  beginIsolateBudget,
+  isVercel,
+  LOCAL_ISOLATE_BUDGET_MS,
+  VERCEL_ISOLATE_BUDGET_MS,
+} from "./runtime.js";
 import {
   loadCachedBoard,
   publishAbort,
@@ -21,6 +28,7 @@ import { ExecutionGradeSchema } from "./spec-schema.js";
 import {
   createRun,
   listRunIds,
+  markRunKilled,
   nowIso,
   promptPath,
   readManifest,
@@ -248,7 +256,7 @@ export function mountHttp(app: Express): void {
     const inputDir = join(existing.dir, "inputs");
     const runPaths = materializeInputs(body, inputDir);
     const hold = createHttpHold();
-    beginIsolateBudget();
+    beginIsolateBudget(isVercel() ? VERCEL_ISOLATE_BUDGET_MS : LOCAL_ISOLATE_BUDGET_MS);
     const done = runPipeline({
       mode,
       autoApprove: false,
@@ -264,10 +272,15 @@ export function mountHttp(app: Express): void {
     })
       .catch((err: unknown) => {
         try {
-          const manifest = readManifest(existing.dir);
-          manifest.phase = "failed";
-          manifest.error = err instanceof Error ? err.message : String(err);
-          writeManifest(existing.dir, manifest);
+          if (isPipelineKilled(err)) {
+            markRunKilled(existing.dir);
+          } else {
+            const manifest = readManifest(existing.dir);
+            manifest.phase = "failed";
+            manifest.error = err instanceof Error ? err.message : String(err);
+            if (isCreditsError(err)) manifest.credits_exhausted = true;
+            writeManifest(existing.dir, manifest);
+          }
         } catch {
           /* dir may be incomplete */
         }
@@ -408,25 +421,43 @@ export function mountHttp(app: Express): void {
     } catch (err) {
       return jsonError(res, 400, err instanceof Error ? err.message : String(err));
     }
-    if (active?.runId === runId) {
-      active.hold.abort("killed from dashboard");
-    } else {
-      await publishAbort(runId, "killed from dashboard");
-    }
-    try {
-      const manifest = readManifest(runDirFor(runId));
-      manifest.phase = "failed";
-      manifest.error = "killed from dashboard";
-      writeManifest(runDirFor(runId), manifest);
-    } catch {
-      /* run dir may be incomplete */
-    }
+    await killPipelineRun(runId);
     res.json({ ok: true, runId, phase: "failed" });
   });
 }
 
 export function getActiveRunId(): string | undefined {
   return active?.runId;
+}
+
+async function killPipelineRun(runId: string): Promise<void> {
+  if (active?.runId === runId) {
+    active.hold.abort("killed from dashboard");
+  }
+  await publishAbort(runId, "killed from dashboard");
+  try {
+    await cancelTrackedCloudRuns(runId);
+  } catch {
+    /* leftover agents are best-effort */
+  }
+  try {
+    markRunKilled(runDirFor(runId));
+  } catch {
+    /* run dir may live on the owner isolate */
+  }
+  try {
+    await publishBoard(runId, assembleBoard(runId, false));
+  } catch {
+    const cached = await loadCachedBoard(runId);
+    if (cached) {
+      await publishBoard(runId, {
+        ...cached,
+        phase: "failed",
+        error: "killed from dashboard",
+        controlling: false,
+      });
+    }
+  }
 }
 
 function keepRunAlive(runId: string, hold: HttpHold, done: Promise<unknown>): void {
@@ -441,6 +472,7 @@ function keepRunAlive(runId: string, hold: HttpHold, done: Promise<unknown>): vo
         const ctl = await takeRemoteCtl(runId);
         if (ctl.abort) {
           hold.abort(ctl.abort);
+          void cancelTrackedCloudRuns(runId);
           return;
         }
         for (const [slug, record] of Object.entries(ctl.decisions)) {

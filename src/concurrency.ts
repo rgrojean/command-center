@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PipelineKilled } from "./hold.js";
 
 /** Across-repo fan-out. Within a repo, LEGOLAS ∥ BILBO is always a pair. */
 export type Concurrency = "full" | "sequential" | number;
@@ -42,6 +43,13 @@ export function labelConcurrency(concurrency: Concurrency): string {
   return `pool(${concurrency})`;
 }
 
+/** Hosted Cursor plans cap simultaneous cloud agents; fleet "full" overruns that. */
+export function capHostedConcurrency(concurrency: Concurrency, max = 2): Concurrency {
+  if (concurrency === "sequential") return concurrency;
+  if (concurrency === "full") return max;
+  return Math.min(concurrency, max);
+}
+
 /** Ladder: full → pool(2) → sequential. A configured pool(n>2) also drops to 2, then sequential. */
 export function nextRung(concurrency: Concurrency): Concurrency | undefined {
   if (concurrency === "full") return 2;
@@ -51,14 +59,13 @@ export function nextRung(concurrency: Concurrency): Concurrency | undefined {
   return undefined;
 }
 
-export function isCapacityError(err: unknown): boolean {
-  if (err instanceof CapacityError) return true;
+function errorBlob(err: unknown): string {
   const parts: string[] = [];
   let cur: unknown = err;
   for (let i = 0; i < 5 && cur; i++) {
     if (typeof cur === "object" && cur !== null && "status" in cur) {
       const status = (cur as { status?: unknown }).status;
-      if (status === 429 || status === 503) return true;
+      if (status !== undefined) parts.push(String(status));
     }
     if (cur instanceof Error) {
       parts.push(cur.name, cur.message);
@@ -68,31 +75,62 @@ export function isCapacityError(err: unknown): boolean {
     parts.push(String(cur));
     break;
   }
-  return /rate.?limit|429|too many (requests|agents|executors)|resource.?exhaust|overloaded|capacit(y|ies)|concurrent.{0,20}limit|try again later|resource.?limit/i.test(
-    parts.join(" "),
+  return parts.join(" ");
+}
+
+export function isCapacityError(err: unknown): boolean {
+  if (err instanceof CapacityError) return true;
+  const blob = errorBlob(err);
+  if (/\b(429|503)\b/.test(blob)) return true;
+  return /rate.?limit|too many (requests|agents|executors)|resource.?exhaust|overloaded|capacit(y|ies)|concurrent.{0,20}limit|try again later|resource.?limit|upgrade to ultra|cloud agents|reached the limit for your current plan/i.test(
+    blob,
+  );
+}
+
+/** Cursor plan / credit / simultaneous-cloud-agent ceiling — show the operator popup. */
+export function isCreditsError(err: unknown): boolean {
+  return /upgrade to ultra|cloud agents|reached the limit for your current plan|insufficient credits|out of credits|credit.?limit|usage limit|quota.?exceeded|payment required|\b402\b/i.test(
+    errorBlob(err),
   );
 }
 
 /** Streaming write slots so one approved repo can start while others still research. */
-export function createLimiter(concurrency: Concurrency): { run<T>(fn: () => Promise<T>): Promise<T> } {
+export function createLimiter(
+  concurrency: Concurrency,
+  signal?: AbortSignal,
+): { run<T>(fn: () => Promise<T>): Promise<T> } {
   let active = 0;
-  const waiters: Array<() => void> = [];
+  const waiters: Array<{ go: () => void; fail: (err: Error) => void }> = [];
   const limit =
     concurrency === "sequential" ? 1 : concurrency === "full" ? Number.POSITIVE_INFINITY : concurrency;
 
+  const failWaiters = (err: Error) => {
+    const pending = waiters.splice(0);
+    for (const w of pending) w.fail(err);
+  };
+  signal?.addEventListener(
+    "abort",
+    () => {
+      failWaiters(new PipelineKilled());
+    },
+    { once: true },
+  );
+
   return {
     async run<T>(fn: () => Promise<T>): Promise<T> {
+      if (signal?.aborted) throw new PipelineKilled();
       if (active >= limit) {
-        await new Promise<void>((resolve) => {
-          waiters.push(resolve);
+        await new Promise<void>((resolve, reject) => {
+          waiters.push({ go: resolve, fail: reject });
         });
       }
+      if (signal?.aborted) throw new PipelineKilled();
       active += 1;
       try {
         return await fn();
       } finally {
         active -= 1;
-        waiters.shift()?.();
+        waiters.shift()?.go();
       }
     },
   };

@@ -19,6 +19,7 @@ export type CallSiteOpts = {
   onEvent?: (event: AgentEvent) => void;
   signal?: AbortSignal;
   registerCancel?: (cancel: () => void) => () => void;
+  pipelineRunId?: string;
 };
 
 /**
@@ -50,6 +51,7 @@ export function runReadOnlyAgent(
     onEvent: opts.onEvent,
     signal: opts.signal,
     registerCancel: opts.registerCancel,
+    pipelineRunId: opts.pipelineRunId,
   });
 }
 
@@ -73,5 +75,6 @@ export function runWriteAgent(
     onEvent: opts.onEvent,
     signal: opts.signal,
     registerCancel: opts.registerCancel,
+    pipelineRunId: opts.pipelineRunId,
   });
 }
